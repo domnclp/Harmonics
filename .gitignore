@@ -8,5 +8,6 @@ build
 coverage
 *.log
 *.err
+*.out
 .vercel
 .railway
