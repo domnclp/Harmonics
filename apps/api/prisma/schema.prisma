@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                String            @id
+  email             String            @unique
+  name              String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  schedules         Schedule[]
+  blockTemplates    BlockTemplate[]
+  scheduleBlocks    ScheduleBlock[]
+  blockInstances    BlockInstance[]
+}
+
+model Schedule {
+  id             String          @id @default(cuid())
+  userId         String
+  name           String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheduleBlocks ScheduleBlock[]
+
+  @@index([userId])
+}
+
+model BlockTemplate {
+  id             String           @id @default(cuid())
+  userId         String
+  name           String
+  description    String?
+  color          String
+  icon           String
+  category       String
+  journalPrompt  String?
+  isTemporary    Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habits         TemplateHabit[]
+  tasks          TemplateTask[]
+  scheduleBlocks ScheduleBlock[]
+  instances      BlockInstance[]
+
+  @@index([userId])
+}
+
+model TemplateHabit {
+  id          String             @id @default(cuid())
+  templateId  String
+  title       String
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  template    BlockTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  completions HabitCompletion[]
+
+  @@index([templateId])
+}
+
+model TemplateTask {
+  id          String           @id @default(cuid())
+  templateId  String
+  title       String
+  sortOrder   Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  template    BlockTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  completions TaskCompletion[]
+
+  @@index([templateId])
+}
+
+model ScheduleBlock {
+  id             String          @id @default(cuid())
+  userId         String
+  scheduleId     String
+  templateId     String
+  dayOfWeek      Int
+  date           DateTime?       @db.Date
+  startTime      String
+  endTime        String
+  recurrenceRule String          @default("WEEKLY")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule       Schedule        @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  template       BlockTemplate   @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  instances      BlockInstance[]
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([scheduleId])
+  @@index([templateId])
+}
+
+model BlockInstance {
+  id                   String              @id @default(cuid())
+  userId               String
+  scheduleBlockId      String
+  templateId           String
+  date                 DateTime            @db.Date
+  startTime            String
+  endTime              String
+  completionPercentage Int                 @default(0)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheduleBlock        ScheduleBlock       @relation(fields: [scheduleBlockId], references: [id], onDelete: Cascade)
+  template             BlockTemplate       @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  habitCompletions     HabitCompletion[]
+  taskCompletions      TaskCompletion[]
+  journalEntry         JournalEntry?
+
+  @@unique([scheduleBlockId, date])
+  @@index([userId, date])
+}
+
+model HabitCompletion {
+  id              String          @id @default(cuid())
+  instanceId      String
+  templateHabitId String?
+  title           String
+  completed       Boolean         @default(false)
+  failureReason   String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  instance        BlockInstance   @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  templateHabit   TemplateHabit?  @relation(fields: [templateHabitId], references: [id], onDelete: SetNull)
+
+  @@index([instanceId])
+}
+
+model TaskCompletion {
+  id             String         @id @default(cuid())
+  instanceId     String
+  templateTaskId String?
+  title          String
+  completed      Boolean        @default(false)
+  failureReason  String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  instance       BlockInstance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  templateTask   TemplateTask?  @relation(fields: [templateTaskId], references: [id], onDelete: SetNull)
+
+  @@index([instanceId])
+}
+
+model JournalEntry {
+  id         String        @id @default(cuid())
+  instanceId String        @unique
+  content    String        @default("")
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  instance   BlockInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+}

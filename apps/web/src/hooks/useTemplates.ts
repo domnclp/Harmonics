@@ -1,0 +1,54 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "../lib/api";
+import type { BlockTemplate } from "../types";
+
+export type TemplatePayload = {
+  name: string;
+  description?: string | null;
+  color: string;
+  icon: string;
+  category: string;
+  journalPrompt?: string | null;
+  isTemporary?: boolean;
+  habits: { title: string; sortOrder: number }[];
+  tasks: { title: string; sortOrder: number }[];
+};
+
+export function useTemplates() {
+  const queryClient = useQueryClient();
+  const templates = useQuery({
+    queryKey: ["templates"],
+    queryFn: () => apiFetch<BlockTemplate[]>("/api/templates")
+  });
+
+  const createTemplate = useMutation({
+    mutationFn: (payload: TemplatePayload) => apiFetch<BlockTemplate>("/api/templates", { method: "POST", body: payload }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["templates"] })
+  });
+
+  const updateTemplate = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<TemplatePayload> }) =>
+      apiFetch<BlockTemplate>(`/api/templates/${id}`, { method: "PATCH", body: payload }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["templates"] })
+  });
+
+  const deleteTemplate = useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/api/templates/${id}`, { method: "DELETE" }),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["templates"] });
+      const previous = queryClient.getQueryData<BlockTemplate[]>(["templates"]);
+      queryClient.setQueryData<BlockTemplate[]>(["templates"], (templates = []) => templates.filter((template) => template.id !== id));
+      return { previous };
+    },
+    onError: (_error, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(["templates"], context.previous);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-instances"] });
+    }
+  });
+
+  return { ...templates, createTemplate, updateTemplate, deleteTemplate };
+}
