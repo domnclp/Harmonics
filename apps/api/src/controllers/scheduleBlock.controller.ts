@@ -4,6 +4,7 @@ import { scheduleBlockService } from "../services/scheduleBlock.service.js";
 
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:mm format");
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD format");
+const recurrenceRuleSchema = z.enum(["YEARLY", "SEMI_ANNUALLY", "QUARTERLY", "MONTHLY", "WEEKLY", "DAILY", "WEEKDAYS", "CUSTOM", "ONCE"]);
 
 const scheduleBlockSchema = z.object({
   scheduleId: z.string().min(1),
@@ -12,7 +13,7 @@ const scheduleBlockSchema = z.object({
   date: dateSchema.nullable().optional(),
   startTime: timeSchema,
   endTime: timeSchema,
-  recurrenceRule: z.string().min(1).max(120).optional()
+  recurrenceRule: recurrenceRuleSchema.optional()
 });
 
 export const scheduleBlockController = {

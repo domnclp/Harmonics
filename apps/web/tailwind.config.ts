@@ -6,34 +6,47 @@ export default {
   theme: {
     extend: {
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
+        border: "#607456",
+        input: "#A9B99A",
+        ring: "#BA6A4C",
+        background: "#EEE0CC",
+        foreground: "#364A32",
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))"
+          DEFAULT: "#607456",
+          foreground: "#EEE0CC"
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))"
+          DEFAULT: "#7F916F",
+          foreground: "#EEE0CC"
         },
         muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))"
+          DEFAULT: "#D8E0D0",
+          foreground: "#364A32"
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))"
+          DEFAULT: "#BA6A4C",
+          foreground: "#EEE0CC"
         },
         destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))"
+          DEFAULT: "#7B2525",
+          foreground: "#EEE0CC"
         },
         card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))"
+          DEFAULT: "#F6EDE0",
+          foreground: "#364A32"
+        },
+        palette: {
+          cream: "#EEE0CC",
+          creamLight: "#F6EDE0",
+          sage: "#607456",
+          sageLight: "#7F916F",
+          sageDeep: "#364A32",
+          wheat: "#D9C49E",
+          clay: "#BA6A4C",
+          mint: "#D8E0D0",
+          moss: "#A9B99A",
+          blush: "#E8CFC1",
+          oxblood: "#7B2525"
         }
       },
       borderRadius: {
@@ -45,7 +58,7 @@ export default {
         serif: ["Lora", "Merriweather", "Georgia", "Times New Roman", "serif"]
       },
       boxShadow: {
-        soft: "0 14px 34px rgba(34, 30, 27, 0.08)"
+        soft: "0 14px 34px rgba(54, 74, 50, 0.14)"
       }
     }
   },

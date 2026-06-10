@@ -4,6 +4,7 @@ import { FailureReasonChart } from "../components/analytics/FailureReasonChart";
 import { WeeklyCompletionChart } from "../components/analytics/WeeklyCompletionChart";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { getMonday, toDateKey } from "../lib/date";
+import { palette } from "../lib/palette";
 import { useAnalytics } from "../hooks/useAnalytics";
 
 export function AnalyticsPage() {
@@ -41,7 +42,7 @@ export function AnalyticsPage() {
                 <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Line type="monotone" dataKey="completion" stroke="#8f2633" strokeWidth={2} />
+                <Line type="monotone" dataKey="completion" stroke={palette.meltedCandleSticks} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>

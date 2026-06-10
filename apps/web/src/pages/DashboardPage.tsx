@@ -6,7 +6,8 @@ import { ProgressSummary } from "../components/dashboard/ProgressSummary";
 import { CreateScheduleBlockDialog } from "../components/schedule/CreateScheduleBlockDialog";
 import { BlockDetailModal } from "../components/schedule/BlockDetailModal";
 import { apiFetch } from "../lib/api";
-import { addDays, dayOfWeekMondayFirst, formatTime, toDateKey, toMinutes } from "../lib/date";
+import { addDays, formatTime, toDateKey, toMinutes } from "../lib/date";
+import { blockOccursOnDate } from "../lib/recurrence";
 import { cn } from "../lib/utils";
 import { useScheduleBlocks } from "../hooks/useScheduleBlocks";
 import type { BlockInstance, ScheduleBlock } from "../types";
@@ -43,7 +44,7 @@ const getBlockStyle = (block: ScheduleBlock) => {
     top,
     height,
     borderColor: block.template.color,
-    backgroundColor: `${block.template.color}18`
+    backgroundColor: "#F6EDE0"
   };
 };
 
@@ -51,11 +52,10 @@ export function DashboardPage() {
   const [activeDate, setActiveDate] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const dateKey = toDateKey(activeDate);
-  const activeDayIndex = dayOfWeekMondayFirst(activeDate);
   const [selected, setSelected] = useState<SelectedBlock | null>(null);
   const { data: blocks = [], deleteBlock } = useScheduleBlocks();
   const dayBlocks = blocks
-    .filter((block) => block.dayOfWeek === activeDayIndex && (block.recurrenceRule !== "ONCE" || block.date?.slice(0, 10) === dateKey))
+    .filter((block) => blockOccursOnDate(block, dateKey))
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const instances = useQuery({
@@ -85,7 +85,7 @@ export function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className={cn("inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary/90")}
+            className={cn("inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-palette-moss hover:text-primary")}
             onClick={() => setDialogOpen(true)}
           >
             <Plus className="h-4 w-4" />
@@ -103,14 +103,14 @@ export function DashboardPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(380px,44%)_minmax(0,1fr)]">
         <section className="overflow-hidden rounded-lg border bg-card shadow-soft xl:sticky xl:top-20 xl:self-start" aria-label="Single day calendar">
-          <div className="border-b bg-muted/45 p-4">
+          <div className="border-b bg-muted p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Day calendar</h3>
                 <p className="text-xs text-muted-foreground">{dateKey}</p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex items-center rounded-md border bg-background p-1 shadow-sm">
+                <div className="flex items-center rounded-md border bg-background p-1 shadow-soft">
                   <button
                     type="button"
                     className="grid h-8 w-8 place-items-center rounded-sm transition hover:bg-muted"
@@ -140,12 +140,12 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="relative min-h-[765px] bg-background/70">
+          <div className="relative min-h-[765px] bg-background">
             <div className="absolute left-0 top-0 w-full">
               {timelineSlots.map((time) => (
-                <div key={time} className="grid border-t border-border/80" style={{ gridTemplateColumns: "72px 1fr", height: rowHeight }}>
+                <div key={time} className="grid border-t border-border" style={{ gridTemplateColumns: "72px 1fr", height: rowHeight }}>
                   <div className="pr-3 pt-2 text-right text-[11px] font-medium uppercase text-muted-foreground">{formatTime(time).toLowerCase()}</div>
-                  <div className="border-l border-border/80" />
+                  <div className="border-l border-border" />
                 </div>
               ))}
             </div>
@@ -158,7 +158,7 @@ export function DashboardPage() {
                   <button
                     key={block.id}
                     type="button"
-                    className="absolute left-3 right-3 overflow-hidden rounded-md border-l-4 bg-card px-3 py-2 text-left shadow-sm transition hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="absolute left-3 right-3 overflow-hidden rounded-md border-l-4 bg-card px-3 py-2 text-left shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     style={getBlockStyle(block)}
                     onClick={() => setSelected({ block, date: dateKey })}
                   >

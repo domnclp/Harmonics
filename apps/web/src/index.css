@@ -2,55 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 42 38% 96%;
-  --foreground: 24 16% 15%;
-  --card: 40 32% 99%;
-  --card-foreground: 24 16% 15%;
-  --primary: 356 55% 35%;
-  --primary-foreground: 32 48% 96%;
-  --secondary: 118 16% 55%;
-  --secondary-foreground: 24 16% 15%;
-  --muted: 38 28% 90%;
-  --muted-foreground: 24 9% 42%;
-  --accent: 36 34% 82%;
-  --accent-foreground: 24 16% 15%;
-  --destructive: 0 68% 42%;
-  --destructive-foreground: 32 48% 96%;
-  --border: 34 22% 82%;
-  --input: 34 22% 82%;
-  --ring: 356 55% 35%;
-}
-
-.dark {
-  --background: 24 12% 11%;
-  --foreground: 38 34% 92%;
-  --card: 24 12% 15%;
-  --card-foreground: 38 34% 92%;
-  --primary: 356 48% 52%;
-  --primary-foreground: 38 34% 96%;
-  --secondary: 118 12% 44%;
-  --secondary-foreground: 38 34% 92%;
-  --muted: 24 10% 20%;
-  --muted-foreground: 36 14% 70%;
-  --accent: 35 20% 28%;
-  --accent-foreground: 38 34% 92%;
-  --destructive: 0 64% 48%;
-  --destructive-foreground: 38 34% 96%;
-  --border: 24 10% 25%;
-  --input: 24 10% 25%;
-  --ring: 356 48% 52%;
-}
-
 * {
-  border-color: hsl(var(--border));
+  border-color: #607456;
 }
 
 body {
   margin: 0;
   min-width: 320px;
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: #EEE0CC;
+  color: #364A32;
   font-family: "Lora", "Merriweather", "Georgia", "Times New Roman", serif;
 }
 

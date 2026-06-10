@@ -1,5 +1,6 @@
 import type { ScheduleBlock } from "../../types";
 import { addDays, dayLabels, formatTime, getMonday, timeSlots, toDateKey, toMinutes } from "../../lib/date";
+import { blockOccursOnDate } from "../../lib/recurrence";
 import { ScheduleBlockCard } from "./ScheduleBlockCard";
 
 const slotHeight = 44;
@@ -43,7 +44,7 @@ export function WeeklyScheduleGrid({
                   <div key={slot} className="h-11 border-b" />
                 ))}
                 {blocks
-                  .filter((block) => block.dayOfWeek === dayIndex && (block.recurrenceRule !== "ONCE" || block.date?.slice(0, 10) === date))
+                  .filter((block) => blockOccursOnDate(block, date))
                   .map((block) => {
                     const top = ((toMinutes(block.startTime) - startMinutes) / 30) * slotHeight;
                     const height = Math.max(42, ((toMinutes(block.endTime) - toMinutes(block.startTime)) / 30) * slotHeight - 6);

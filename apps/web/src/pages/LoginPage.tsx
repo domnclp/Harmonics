@@ -50,7 +50,7 @@ export function LoginPage() {
               <Input id="password" type="password" autoComplete="current-password" {...register("password")} />
               {formState.errors.password && <p className="text-sm text-destructive">{formState.errors.password.message}</p>}
             </div>
-            {error && <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+            {error && <p className="rounded-md bg-destructive p-3 text-sm text-destructive-foreground">{error}</p>}
             <Button className="w-full" type="submit" disabled={formState.isSubmitting}>
               <LogIn className="h-4 w-4" />
               Log in

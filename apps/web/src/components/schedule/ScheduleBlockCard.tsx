@@ -19,7 +19,7 @@ export function ScheduleBlockCard({
     <button
       type="button"
       className={cn(
-        "w-full overflow-hidden rounded-md border-l-4 bg-card p-3 text-left shadow-sm transition hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "w-full overflow-hidden rounded-md border-l-4 bg-card p-3 text-left shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         compact ? "space-y-1" : "space-y-2"
       )}
       style={{ borderLeftColor: block.template.color, ...style }}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ScheduleBlock } from "../../types";
 import { addDays, dayShortLabels, getMonday, toDateKey } from "../../lib/date";
+import { blockOccursOnDate } from "../../lib/recurrence";
 import { Tabs, TabButton } from "../ui/tabs";
 import { ScheduleBlockCard } from "./ScheduleBlockCard";
 
@@ -16,7 +17,7 @@ export function MobileDayTimeline({
   const [activeDay, setActiveDay] = useState(0);
   const monday = getMonday(weekStart);
   const date = toDateKey(addDays(monday, activeDay));
-  const dayBlocks = blocks.filter((block) => block.dayOfWeek === activeDay && (block.recurrenceRule !== "ONCE" || block.date?.slice(0, 10) === date));
+  const dayBlocks = blocks.filter((block) => blockOccursOnDate(block, date));
 
   return (
     <div className="space-y-4 lg:hidden">

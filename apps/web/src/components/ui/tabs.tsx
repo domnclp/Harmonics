@@ -19,7 +19,7 @@ export function TabButton({
       type="button"
       className={cn(
         "min-w-16 rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+        active ? "bg-background text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
       )}
       onClick={onClick}
     >

@@ -2,6 +2,7 @@ import { Pencil, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { failureReasons } from "../../lib/failureReasons";
 import { dayLabels, formatTime } from "../../lib/date";
+import { recurrenceOptions } from "../../lib/recurrence";
 import { useBlockInstance } from "../../hooks/useBlockInstance";
 import { useScheduleBlocks } from "../../hooks/useScheduleBlocks";
 import { useTemplates } from "../../hooks/useTemplates";
@@ -67,7 +68,7 @@ export function BlockDetailModal({
         startTime: editValues.startTime,
         endTime: editValues.endTime,
         recurrenceRule: editValues.recurrenceRule,
-        date: editValues.recurrenceRule === "ONCE" ? date : null
+        date
       }
     });
     setEditing(false);
@@ -75,6 +76,7 @@ export function BlockDetailModal({
   };
 
   const hasHabits = Boolean(instance?.habitCompletions.length);
+  const showsDayPicker = editValues.recurrenceRule === "WEEKLY" || editValues.recurrenceRule === "CUSTOM";
 
   return (
     <Dialog open={Boolean(block && date)} onClose={onClose} title={block?.template.name ?? "Block details"} className="sm:max-w-3xl">
@@ -104,7 +106,7 @@ export function BlockDetailModal({
 
           {editing && (
             <form
-              className="space-y-4 rounded-lg border bg-muted/30 p-4"
+              className="space-y-4 rounded-lg border bg-muted p-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 void saveScheduleBlock();
@@ -147,18 +149,20 @@ export function BlockDetailModal({
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-day">Repeat day</Label>
-                  <Select
-                    id="edit-day"
-                    value={editValues.dayOfWeek}
-                    onChange={(event) => setEditValues((values) => ({ ...values, dayOfWeek: Number(event.target.value) }))}
-                  >
-                    {dayLabels.map((day, index) => (
-                      <option key={day} value={index}>{day}</option>
-                    ))}
-                  </Select>
-                </div>
+                {showsDayPicker && (
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-day">Repeat day</Label>
+                    <Select
+                      id="edit-day"
+                      value={editValues.dayOfWeek}
+                      onChange={(event) => setEditValues((values) => ({ ...values, dayOfWeek: Number(event.target.value) }))}
+                    >
+                      {dayLabels.map((day, index) => (
+                        <option key={day} value={index}>{day}</option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="edit-recurrence">Repeats</Label>
                   <Select
@@ -166,10 +170,10 @@ export function BlockDetailModal({
                     value={editValues.recurrenceRule}
                     onChange={(event) => setEditValues((values) => ({ ...values, recurrenceRule: event.target.value }))}
                   >
-                    <option value="WEEKLY">Every week</option>
-                    <option value="MONTHLY">Every month</option>
-                    <option value="CUSTOM">Custom</option>
-                    <option value="ONCE">Does not repeat</option>
+                    {recurrenceOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                    {editValues.recurrenceRule === "ONCE" && <option value="ONCE">Does not repeat</option>}
                   </Select>
                 </div>
               </div>
@@ -240,7 +244,7 @@ function Checklist({
       <div className="space-y-3">
         {items.length === 0 && <p className="text-sm text-muted-foreground">No {title.toLowerCase()} in this template.</p>}
         {items.map((item) => (
-          <div key={item.id} className="space-y-2 rounded-md bg-muted/45 p-3">
+          <div key={item.id} className="space-y-2 rounded-md bg-muted p-3">
             <label className="flex items-center gap-3 text-sm font-medium">
               <input
                 type="checkbox"

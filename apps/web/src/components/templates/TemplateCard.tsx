@@ -22,7 +22,7 @@ export function TemplateCard({
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-md text-white" style={{ backgroundColor: template.color }}>
+          <div className="grid h-10 w-10 place-items-center rounded-md text-background" style={{ backgroundColor: template.color }}>
             <Icon className="h-5 w-5" />
           </div>
           <div>

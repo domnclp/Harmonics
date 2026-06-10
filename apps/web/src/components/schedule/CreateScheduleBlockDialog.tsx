@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { addDays, dayLabels, getMonday, toDateKey } from "../../lib/date";
+import { palette } from "../../lib/palette";
+import { recurrenceOptions, type RecurrenceRule } from "../../lib/recurrence";
 import { useScheduleBlocks } from "../../hooks/useScheduleBlocks";
 import { useSchedules } from "../../hooks/useSchedules";
 import { useTemplates } from "../../hooks/useTemplates";
@@ -17,7 +19,7 @@ const schema = z.object({
   templateId: z.string().optional(),
   startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  recurrenceRule: z.string().min(1)
+  recurrenceRule: z.enum(["YEARLY", "SEMI_ANNUALLY", "QUARTERLY", "MONTHLY", "WEEKLY", "DAILY", "WEEKDAYS", "CUSTOM", "ONCE"])
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -68,6 +70,18 @@ export function CreateScheduleBlockDialog({
     );
   };
 
+  const updateRecurrenceRule = (rule: RecurrenceRule) => {
+    form.setValue("recurrenceRule", rule);
+
+    if (rule === "DAILY") {
+      setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
+    } else if (rule === "WEEKDAYS") {
+      setSelectedDays([0, 1, 2, 3, 4]);
+    } else if (selectedDays.length === 0) {
+      setSelectedDays([defaultDay]);
+    }
+  };
+
   const resetDialog = () => {
     form.reset();
     setMode("template");
@@ -94,8 +108,9 @@ export function CreateScheduleBlockDialog({
 
   const submit = async (values: FormValues) => {
     const cleanTemporaryTasks = temporaryTasks.map((task) => task.trim()).filter(Boolean);
+    const usesSelectedDays = values.recurrenceRule === "WEEKLY" || values.recurrenceRule === "CUSTOM";
 
-    if (mode === "template" && (!values.templateId || selectedDays.length === 0)) return;
+    if (mode === "template" && (!values.templateId || (usesSelectedDays && selectedDays.length === 0))) return;
     if (mode === "temporary" && (!temporaryName.trim() || cleanTemporaryTasks.length === 0)) return;
 
     let scheduleId = schedules[0]?.id;
@@ -110,7 +125,7 @@ export function CreateScheduleBlockDialog({
             await createTemplate.mutateAsync({
               name: temporaryName.trim(),
               description: "One-time block",
-              color: "#7d6b55",
+              color: palette.linenSkirt,
               icon: "CalendarDays",
               category: "Temporary",
               journalPrompt: null,
@@ -121,26 +136,37 @@ export function CreateScheduleBlockDialog({
           ).id
         : values.templateId!;
 
+    const recurrenceRule = mode === "temporary" ? "ONCE" : values.recurrenceRule;
     const monday = getMonday(defaultDate);
     const temporaryDateValue = new Date(`${temporaryDate}T00:00:00`);
     const temporaryDay = temporaryDateValue.getDay() === 0 ? 6 : temporaryDateValue.getDay() - 1;
-    const daysToCreate = mode === "temporary" ? [temporaryDay] : selectedDays;
+    const daysToCreate =
+      mode === "temporary" || ["DAILY", "WEEKDAYS", "MONTHLY", "QUARTERLY", "SEMI_ANNUALLY", "YEARLY"].includes(recurrenceRule)
+        ? [mode === "temporary" ? temporaryDay : defaultDay]
+        : selectedDays;
 
     await createBlocks.mutateAsync(
-      daysToCreate.map((dayOfWeek) => ({
+      daysToCreate.map((dayOfWeek) => {
+        const anchorDate = mode === "temporary" ? temporaryDate : toDateKey(addDays(monday, dayOfWeek));
+
+        return {
           scheduleId,
           templateId,
           dayOfWeek,
           startTime: values.startTime,
           endTime: values.endTime,
-          recurrenceRule: mode === "temporary" ? "ONCE" : values.recurrenceRule,
-          date: mode === "temporary" ? temporaryDate : values.recurrenceRule === "ONCE" ? toDateKey(addDays(monday, dayOfWeek)) : null
-        }))
+          recurrenceRule,
+          date: anchorDate
+        };
+      })
     );
 
     resetDialog();
     onClose();
   };
+
+  const watchedRecurrenceRule = form.watch("recurrenceRule");
+  const showsDayPicker = watchedRecurrenceRule === "WEEKLY" || watchedRecurrenceRule === "CUSTOM";
 
   return (
     <Dialog open={open} onClose={onClose} title="Add block">
@@ -150,7 +176,17 @@ export function CreateScheduleBlockDialog({
 
       <form className="space-y-5" onSubmit={form.handleSubmit(submit)}>
         <div className="grid gap-2 sm:grid-cols-2">
-          <ModeButton active={mode === "template"} title="Select from template" description="Use an existing repeatable routine." onClick={() => setMode("template")} />
+          <ModeButton
+            active={mode === "template"}
+            title="Select from template"
+            description="Use an existing repeatable routine."
+            onClick={() => {
+              setMode("template");
+              if (form.getValues("recurrenceRule") === "ONCE") {
+                form.setValue("recurrenceRule", "WEEKLY");
+              }
+            }}
+          />
           <ModeButton
             active={mode === "temporary"}
             title="Create temporary block"
@@ -172,7 +208,7 @@ export function CreateScheduleBlockDialog({
             </Select>
           </div>
         ) : (
-          <div className="space-y-4 rounded-lg border bg-muted/25 p-4">
+          <div className="space-y-4 rounded-lg border bg-muted p-4">
             <div className="space-y-2">
               <Label htmlFor="temporaryName">Temporary block name</Label>
               <Input id="temporaryName" value={temporaryName} onChange={(event) => setTemporaryName(event.target.value)} placeholder="Doctor appointment" />
@@ -210,7 +246,7 @@ export function CreateScheduleBlockDialog({
           </div>
         )}
 
-        <div className="space-y-3 rounded-lg border bg-muted/25 p-4">
+        <div className="space-y-3 rounded-lg border bg-muted p-4">
           <div>
             <h3 className="font-semibold">Time</h3>
             <p className="text-sm text-muted-foreground">Choose when this block starts and ends.</p>
@@ -228,35 +264,36 @@ export function CreateScheduleBlockDialog({
         </div>
 
         {mode === "template" ? (
-          <div className="space-y-3 rounded-lg border bg-muted/25 p-4">
-            <div>
-              <h3 className="font-semibold">Repeat</h3>
-              <p className="text-sm text-muted-foreground">Pick the day or days and how the block should repeat.</p>
-            </div>
-            <div className="space-y-2">
-              <Label>Day or days</Label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {dayLabels.map((day, index) => (
-                  <label key={day} className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
-                    <input type="checkbox" className="h-4 w-4 accent-primary" checked={selectedDays.includes(index)} onChange={() => toggleDay(index)} />
-                    {day}
-                  </label>
-                ))}
+          <div className="space-y-3 rounded-lg border bg-muted p-4">
+            {showsDayPicker && (
+              <div className="space-y-2">
+                <Label>Day or days</Label>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {dayLabels.map((day, index) => (
+                    <label key={day} className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+                      <input type="checkbox" className="h-4 w-4 accent-primary" checked={selectedDays.includes(index)} onChange={() => toggleDay(index)} />
+                      {day}
+                    </label>
+                  ))}
+                </div>
+                {selectedDays.length === 0 && <p className="text-sm text-destructive">Choose at least one day.</p>}
               </div>
-              {selectedDays.length === 0 && <p className="text-sm text-destructive">Choose at least one day.</p>}
-            </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="recurrenceRule">Repeats</Label>
-              <Select id="recurrenceRule" {...form.register("recurrenceRule")}>
-                <option value="WEEKLY">Every week</option>
-                <option value="MONTHLY">Every month</option>
-                <option value="CUSTOM">Custom</option>
-                <option value="ONCE">Does not repeat</option>
+              <Select
+                id="recurrenceRule"
+                value={watchedRecurrenceRule}
+                onChange={(event) => updateRecurrenceRule(event.target.value as RecurrenceRule)}
+              >
+                {recurrenceOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </Select>
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border bg-muted/25 p-4">
+          <div className="rounded-lg border bg-muted p-4">
             <h3 className="font-semibold">Repeat</h3>
             <p className="text-sm text-muted-foreground">Temporary blocks happen once on {temporaryDate}.</p>
           </div>
@@ -268,7 +305,9 @@ export function CreateScheduleBlockDialog({
             createBlocks.isPending ||
             createSchedule.isPending ||
             createTemplate.isPending ||
-            (mode === "template" && (!form.watch("templateId") || selectedDays.length === 0)) ||
+            (mode === "template" &&
+              (!form.watch("templateId") ||
+                (showsDayPicker && selectedDays.length === 0))) ||
             (mode === "temporary" && (!temporaryName.trim() || temporaryTasks.every((task) => !task.trim())))
           }
         >
@@ -294,7 +333,7 @@ function ModeButton({
   return (
     <button
       type="button"
-      className={`rounded-md border px-4 py-3 text-left transition ${active ? "border-primary bg-primary/10" : "bg-background hover:bg-muted"}`}
+      className={`rounded-md border px-4 py-3 text-left transition ${active ? "border-primary bg-palette-mint text-primary" : "bg-background hover:bg-muted"}`}
       onClick={onClick}
     >
       <div className="font-semibold">{title}</div>

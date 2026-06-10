@@ -60,8 +60,8 @@ export function RegisterPage() {
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" autoComplete="new-password" {...register("password")} />
             </div>
-            {error && <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-            {message && <p className="rounded-md bg-secondary/15 p-3 text-sm">{message}</p>}
+            {error && <p className="rounded-md bg-destructive p-3 text-sm text-destructive-foreground">{error}</p>}
+            {message && <p className="rounded-md bg-palette-mint p-3 text-sm text-primary">{message}</p>}
             <Button className="w-full" type="submit" disabled={formState.isSubmitting}>
               <UserPlus className="h-4 w-4" />
               Register

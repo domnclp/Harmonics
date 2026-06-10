@@ -3,6 +3,7 @@ import { Plus, Save, Trash2 } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import type { BlockTemplate } from "../../types";
+import { palette, templateColors } from "../../lib/palette";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -24,8 +25,6 @@ const templateFormSchema = z.object({
 
 export type TemplateFormValues = z.infer<typeof templateFormSchema>;
 
-const colors = ["#8f2633", "#6f8f72", "#7d6b55", "#3f3a37", "#b85c38", "#4f6f8f"];
-
 export function TemplateForm({
   initial,
   onSubmit,
@@ -40,7 +39,7 @@ export function TemplateForm({
     defaultValues: {
       name: initial?.name ?? "",
       description: initial?.description ?? "",
-      color: initial?.color ?? colors[0],
+      color: initial?.color ?? templateColors[0],
       icon: initial?.icon ?? "Sunrise",
       category: initial?.category ?? "Routine",
       journalPrompt: initial?.journalPrompt ?? "",
@@ -77,13 +76,13 @@ export function TemplateForm({
         <div className="space-y-2">
           <Label>Color</Label>
           <div className="flex gap-2">
-            {colors.map((color) => (
+            {templateColors.map((color) => (
               <button
                 key={color}
                 type="button"
                 aria-label={`Use ${color}`}
                 className="h-10 w-10 rounded-md border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                style={{ backgroundColor: color, borderColor: form.watch("color") === color ? "white" : color }}
+                style={{ backgroundColor: color, borderColor: form.watch("color") === color ? palette.lemonWaterIced : color }}
                 onClick={() => form.setValue("color", color)}
               />
             ))}
