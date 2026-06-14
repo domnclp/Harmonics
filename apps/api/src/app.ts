@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import type { RequestHandler } from "express";
 import * as helmet from "helmet";
 import morgan from "morgan";
 import { env } from "./config/env.js";
@@ -15,8 +16,23 @@ import { templateRoutes } from "./routes/template.routes.js";
 
 export const app = express();
 
-app.use(helmet.default());
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+const helmetMiddleware = (helmet.default as unknown as () => RequestHandler)();
+const allowedOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
+
+app.use(helmetMiddleware);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true
+  })
+);
 app.use(express.json());
 app.use(morgan("dev"));
 
