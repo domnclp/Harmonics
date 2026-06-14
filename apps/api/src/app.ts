@@ -1,6 +1,6 @@
 import cors from "cors";
 import express from "express";
-import helmet from "helmet";
+import * as helmet from "helmet";
 import morgan from "morgan";
 import { env } from "./config/env.js";
 import { requireAuth } from "./middleware/auth.middleware.js";
@@ -15,7 +15,7 @@ import { templateRoutes } from "./routes/template.routes.js";
 
 export const app = express();
 
-app.use(helmet());
+app.use(helmet.default());
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
 app.use(express.json());
 app.use(morgan("dev"));
