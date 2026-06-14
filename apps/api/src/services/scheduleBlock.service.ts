@@ -49,8 +49,51 @@ export const scheduleBlockService = {
     });
   },
 
-  createMany(userId: string, inputs: ScheduleBlockInput[]) {
-    return Promise.all(inputs.map((input) => this.create(userId, input)));
+  async createMany(userId: string, inputs: ScheduleBlockInput[]) {
+    if (inputs.length === 0) return [];
+
+    const scheduleIds = [...new Set(inputs.map((input) => input.scheduleId))];
+    const templateIds = [...new Set(inputs.map((input) => input.templateId))];
+
+    const [schedules, templates] = await Promise.all([
+      prisma.schedule.findMany({
+        where: { userId, id: { in: scheduleIds } },
+        select: { id: true }
+      }),
+      prisma.blockTemplate.findMany({
+        where: { userId, id: { in: templateIds } },
+        select: { id: true }
+      })
+    ]);
+
+    const foundScheduleIds = new Set(schedules.map((schedule) => schedule.id));
+    const foundTemplateIds = new Set(templates.map((template) => template.id));
+
+    if (scheduleIds.some((id) => !foundScheduleIds.has(id))) {
+      throw new AppError(404, "Schedule not found");
+    }
+
+    if (templateIds.some((id) => !foundTemplateIds.has(id))) {
+      throw new AppError(404, "Template not found");
+    }
+
+    return prisma.$transaction(
+      inputs.map((input) =>
+        prisma.scheduleBlock.create({
+          data: {
+            userId,
+            scheduleId: input.scheduleId,
+            templateId: input.templateId,
+            dayOfWeek: input.dayOfWeek,
+            date: input.date ? new Date(`${input.date}T00:00:00.000Z`) : null,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            recurrenceRule: input.recurrenceRule ?? "WEEKLY"
+          },
+          include: includeBlock
+        })
+      )
+    );
   },
 
   async get(userId: string, id: string) {

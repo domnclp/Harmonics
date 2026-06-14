@@ -23,7 +23,10 @@ export function useTemplates() {
 
   const createTemplate = useMutation({
     mutationFn: (payload: TemplatePayload) => apiFetch<BlockTemplate>("/api/templates", { method: "POST", body: payload }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["templates"] })
+    onSuccess: (created) => {
+      if (created.isTemporary) return;
+      queryClient.setQueryData<BlockTemplate[]>(["templates"], (templates = []) => [created, ...templates]);
+    }
   });
 
   const updateTemplate = useMutation({

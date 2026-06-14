@@ -11,7 +11,9 @@ export function useSchedules() {
 
   const createSchedule = useMutation({
     mutationFn: (name: string) => apiFetch<Schedule>("/api/schedules", { method: "POST", body: { name } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["schedules"] })
+    onSuccess: (created) => {
+      queryClient.setQueryData<Schedule[]>(["schedules"], (schedules = []) => [...schedules, created]);
+    }
   });
 
   return { ...schedules, createSchedule };

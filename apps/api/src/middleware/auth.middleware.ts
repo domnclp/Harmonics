@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { NextFunction, Request, Response } from "express";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "../config/env.js";
 import { prisma } from "../prisma/client.js";
 import { AppError } from "./error.middleware.js";
@@ -20,6 +21,19 @@ export type AuthUser = {
   name: string | null;
 };
 
+type VerifiedTokenUser = {
+  id: string;
+  email: string;
+  name: string | null;
+};
+
+type SupabaseJwtPayload = {
+  sub?: string;
+  email?: string;
+  exp?: number;
+  user_metadata?: Record<string, unknown>;
+};
+
 declare global {
   namespace Express {
     interface Request {
@@ -27,6 +41,58 @@ declare global {
     }
   }
 }
+
+const getProfileName = (metadata?: Record<string, unknown>) =>
+  typeof metadata?.name === "string"
+    ? metadata.name
+    : typeof metadata?.full_name === "string"
+      ? metadata.full_name
+      : null;
+
+const decodeBase64UrlJson = <T>(value: string): T => JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as T;
+
+const verifyTokenLocally = (token: string): VerifiedTokenUser | null => {
+  if (!env.SUPABASE_JWT_SECRET) return null;
+
+  const [encodedHeader, encodedPayload, encodedSignature] = token.split(".");
+  if (!encodedHeader || !encodedPayload || !encodedSignature) {
+    throw new AppError(401, "Invalid or expired session");
+  }
+
+  const expectedSignature = createHmac("sha256", env.SUPABASE_JWT_SECRET)
+    .update(`${encodedHeader}.${encodedPayload}`)
+    .digest();
+  const actualSignature = Buffer.from(encodedSignature, "base64url");
+
+  if (expectedSignature.length !== actualSignature.length || !timingSafeEqual(expectedSignature, actualSignature)) {
+    throw new AppError(401, "Invalid or expired session");
+  }
+
+  const payload = decodeBase64UrlJson<SupabaseJwtPayload>(encodedPayload);
+  if (!payload.sub || !payload.email || !payload.exp || payload.exp * 1000 <= Date.now()) {
+    throw new AppError(401, "Invalid or expired session");
+  }
+
+  return {
+    id: payload.sub,
+    email: payload.email,
+    name: getProfileName(payload.user_metadata)
+  };
+};
+
+const verifyTokenWithSupabase = async (token: string): Promise<VerifiedTokenUser> => {
+  const { data, error } = await supabase.auth.getUser(token);
+
+  if (error || !data.user?.email) {
+    throw new AppError(401, "Invalid or expired session");
+  }
+
+  return {
+    id: data.user.id,
+    email: data.user.email,
+    name: getProfileName(data.user.user_metadata)
+  };
+};
 
 export const requireAuth = async (req: Request, _res: Response, next: NextFunction) => {
   try {
@@ -44,29 +110,18 @@ export const requireAuth = async (req: Request, _res: Response, next: NextFuncti
       return;
     }
 
-    const { data, error } = await supabase.auth.getUser(token);
-
-    if (error || !data.user?.email) {
-      throw new AppError(401, "Invalid or expired session");
-    }
-
-    const profileName =
-      typeof data.user.user_metadata?.name === "string"
-        ? data.user.user_metadata.name
-        : typeof data.user.user_metadata?.full_name === "string"
-          ? data.user.user_metadata.full_name
-          : null;
+    const verifiedUser = verifyTokenLocally(token) ?? await verifyTokenWithSupabase(token);
 
     const user = await prisma.user.upsert({
-      where: { id: data.user.id },
+      where: { id: verifiedUser.id },
       update: {
-        email: data.user.email,
-        name: profileName
+        email: verifiedUser.email,
+        name: verifiedUser.name
       },
       create: {
-        id: data.user.id,
-        email: data.user.email,
-        name: profileName
+        id: verifiedUser.id,
+        email: verifiedUser.email,
+        name: verifiedUser.name
       }
     });
 

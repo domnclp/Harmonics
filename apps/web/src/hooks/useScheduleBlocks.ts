@@ -22,13 +22,17 @@ export function useScheduleBlocks() {
   const createBlock = useMutation({
     mutationFn: (payload: ScheduleBlockPayload) =>
       apiFetch<ScheduleBlock>("/api/schedule-blocks", { method: "POST", body: payload }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] })
+    onSuccess: (created) => {
+      queryClient.setQueryData<ScheduleBlock[]>(["schedule-blocks"], (blocks = []) => [...blocks, created]);
+    }
   });
 
   const createBlocks = useMutation({
     mutationFn: (payload: ScheduleBlockPayload[]) =>
       apiFetch<ScheduleBlock[]>("/api/schedule-blocks/batch", { method: "POST", body: payload }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] })
+    onSuccess: (created) => {
+      queryClient.setQueryData<ScheduleBlock[]>(["schedule-blocks"], (blocks = []) => [...blocks, ...created]);
+    }
   });
 
   const updateBlock = useMutation({
