@@ -17,18 +17,19 @@ import { templateRoutes } from "./routes/template.routes.js";
 export const app = express();
 
 const helmetMiddleware = (helmet.default as unknown as () => RequestHandler)();
-const allowedOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
+const normalizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, "");
+const allowedOrigins = env.CORS_ORIGIN.split(",").map(normalizeOrigin).filter(Boolean);
 
 app.use(helmetMiddleware);
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
         callback(null, true);
         return;
       }
 
-      callback(new Error("Not allowed by CORS"));
+      callback(null, false);
     },
     credentials: true
   })
