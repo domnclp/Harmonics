@@ -1,16 +1,41 @@
-import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet, useRouteError } from "react-router-dom";
 import { lazy, Suspense } from "react";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { AppLayout } from "../components/layout/AppLayout";
 import { useAuth } from "../hooks/useAuth";
+import { Button } from "../components/ui/button";
 
-const AnalyticsPage = lazy(() => import("../pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
-const DashboardPage = lazy(() => import("../pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
-const LoginPage = lazy(() => import("../pages/LoginPage").then((module) => ({ default: module.LoginPage })));
-const RegisterPage = lazy(() => import("../pages/RegisterPage").then((module) => ({ default: module.RegisterPage })));
-const SchedulePage = lazy(() => import("../pages/SchedulePage").then((module) => ({ default: module.SchedulePage })));
-const SettingsPage = lazy(() => import("../pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
-const TemplatesPage = lazy(() => import("../pages/TemplatesPage").then((module) => ({ default: module.TemplatesPage })));
+const chunkReloadKey = "harmonics:chunk-reload-attempted";
+
+const isChunkLoadError = (error: unknown) =>
+  error instanceof Error && /dynamically imported module|importing a module script failed|loading chunk/i.test(error.message);
+
+const loadPage = async <TModule extends Record<string, unknown>, TExport extends keyof TModule>(
+  importer: () => Promise<TModule>,
+  exportName: TExport
+) => {
+  try {
+    const module = await importer();
+    window.sessionStorage.removeItem(chunkReloadKey);
+    return { default: module[exportName] as ComponentType };
+  } catch (error) {
+    if (isChunkLoadError(error) && !window.sessionStorage.getItem(chunkReloadKey)) {
+      window.sessionStorage.setItem(chunkReloadKey, "true");
+      window.location.reload();
+      return new Promise<{ default: ComponentType }>(() => undefined);
+    }
+
+    throw error;
+  }
+};
+
+const AnalyticsPage = lazy(() => loadPage(() => import("../pages/AnalyticsPage"), "AnalyticsPage"));
+const DashboardPage = lazy(() => loadPage(() => import("../pages/DashboardPage"), "DashboardPage"));
+const LoginPage = lazy(() => loadPage(() => import("../pages/LoginPage"), "LoginPage"));
+const RegisterPage = lazy(() => loadPage(() => import("../pages/RegisterPage"), "RegisterPage"));
+const SchedulePage = lazy(() => loadPage(() => import("../pages/SchedulePage"), "SchedulePage"));
+const SettingsPage = lazy(() => loadPage(() => import("../pages/SettingsPage"), "SettingsPage"));
+const TemplatesPage = lazy(() => loadPage(() => import("../pages/TemplatesPage"), "TemplatesPage"));
 
 function PageLoader() {
   return <div className="grid min-h-72 place-items-center text-muted-foreground">Loading...</div>;
@@ -18,6 +43,28 @@ function PageLoader() {
 
 function withSuspense(element: ReactNode) {
   return <Suspense fallback={<PageLoader />}>{element}</Suspense>;
+}
+
+function RouteError() {
+  const error = useRouteError();
+  const message = error instanceof Error ? error.message : "Something went wrong.";
+  const isUpdatedAppError = isChunkLoadError(error);
+
+  return (
+    <div className="grid min-h-screen place-items-center bg-background p-6 text-foreground">
+      <div className="w-full max-w-md rounded-lg border bg-card p-6 shadow-soft">
+        <h1 className="text-xl font-semibold">{isUpdatedAppError ? "App update needed" : "Something went wrong"}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {isUpdatedAppError
+            ? "The app was updated while this tab was open. Reload to continue with the latest version."
+            : message}
+        </p>
+        <Button className="mt-5" onClick={() => window.location.reload()}>
+          Reload
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function ProtectedRoute() {
@@ -45,6 +92,7 @@ function PublicRoute() {
 
 export const router = createBrowserRouter([
   {
+    errorElement: <RouteError />,
     element: <PublicRoute />,
     children: [
       { path: "/login", element: withSuspense(<LoginPage />) },
@@ -52,6 +100,7 @@ export const router = createBrowserRouter([
     ]
   },
   {
+    errorElement: <RouteError />,
     element: <ProtectedRoute />,
     children: [
       { path: "/", element: <Navigate to="/dashboard" replace /> },
