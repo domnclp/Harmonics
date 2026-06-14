@@ -9,12 +9,7 @@
       "runtimeArgs": ["run", "dev"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
-      "serverReadyAction": {
-        "pattern": "Web ready: (http://localhost:5173)",
-        "uriFormat": "%s",
-        "action": "openExternally"
-      }
+      "internalConsoleOptions": "neverOpen"
     },
     {
       "name": "API: dev",

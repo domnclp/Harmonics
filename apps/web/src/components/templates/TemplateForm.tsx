@@ -12,10 +12,12 @@ import { Textarea } from "../ui/textarea";
 
 const itemSchema = z.object({ title: z.string().min(1), sortOrder: z.number() });
 
+const colorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Choose a color");
+
 const templateFormSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  color: z.string().min(1),
+  color: colorSchema,
   icon: z.string().min(1),
   category: z.string().min(1),
   journalPrompt: z.string().optional(),
@@ -41,7 +43,7 @@ export function TemplateForm({
       description: initial?.description ?? "",
       color: initial?.color ?? templateColors[0],
       icon: initial?.icon ?? "Sunrise",
-      category: initial?.category ?? "Routine",
+      category: initial?.category ?? "",
       journalPrompt: initial?.journalPrompt ?? "",
       habits: initial?.habits.map((habit, index) => ({ title: habit.title, sortOrder: index })) ?? [{ title: "", sortOrder: 0 }],
       tasks: initial?.tasks.map((task, index) => ({ title: task.title, sortOrder: index })) ?? []
@@ -56,11 +58,11 @@ export function TemplateForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="name">Name</Label>
-          <Input id="name" placeholder="Morning Routine" {...form.register("name")} />
+          <Input id="name" placeholder="Enter a template name" {...form.register("name")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="category">Category</Label>
-          <Input id="category" placeholder="Routine" {...form.register("category")} />
+          <Input id="category" placeholder="Enter a category" {...form.register("category")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="icon">Icon</Label>
@@ -74,8 +76,8 @@ export function TemplateForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Color</Label>
-          <div className="flex gap-2">
+          <Label htmlFor="custom-color">Color</Label>
+          <div className="flex flex-wrap gap-2">
             {templateColors.map((color) => (
               <button
                 key={color}
@@ -86,6 +88,17 @@ export function TemplateForm({
                 onClick={() => form.setValue("color", color)}
               />
             ))}
+            <label
+              className="relative grid h-10 w-10 cursor-pointer place-items-center overflow-hidden rounded-md border-2 bg-card text-xs font-semibold text-muted-foreground focus-within:ring-2 focus-within:ring-ring"
+              style={{
+                backgroundColor: templateColors.includes(form.watch("color")) ? palette.cloudyAfternoon : form.watch("color"),
+                borderColor: templateColors.includes(form.watch("color")) ? palette.seaGlassShelf : palette.lemonWaterIced
+              }}
+              title="Choose custom color"
+            >
+              <span>+</span>
+              <input id="custom-color" type="color" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" {...form.register("color")} />
+            </label>
           </div>
         </div>
       </div>

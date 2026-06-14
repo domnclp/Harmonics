@@ -13,10 +13,10 @@ const items = [
 
 export function Sidebar() {
   return (
-    <aside className="sticky top-0 hidden h-screen w-64 border-r bg-card px-4 py-5 lg:block">
+    <aside className="sticky top-0 hidden h-screen w-64 border-r border-sienna-900 bg-palette-red800 px-4 py-5 text-primary-foreground lg:block">
       <div className="mb-7">
-        <div className="text-xl font-bold">{appBrand.name}</div>
-        <p className="mt-1 text-sm text-muted-foreground">{appBrand.tagline}</p>
+        <div className="text-xl font-bold text-primary-foreground">{appBrand.name}</div>
+        <p className="mt-1 text-sm text-cream-400">{appBrand.tagline}</p>
       </div>
       <nav className="space-y-1">
         {items.map((item) => (
@@ -25,8 +25,8 @@ export function Sidebar() {
             to={item.to}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition",
-                isActive ? "bg-palette-wheat text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                "flex items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-sm font-medium transition",
+                isActive ? "border-cream-400 bg-cream-50 text-palette-heading shadow-soft" : "text-cream-400 hover:bg-sienna-900 hover:text-primary-foreground"
               )
             }
           >

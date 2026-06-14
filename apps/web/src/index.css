@@ -3,15 +3,24 @@
 @tailwind utilities;
 
 * {
-  border-color: #607456;
+  border-color: #E8C4A8;
 }
 
 body {
   margin: 0;
   min-width: 320px;
-  background: #EEE0CC;
-  color: #364A32;
+  background: #FFF5EE;
+  color: #7A3010;
   font-family: "Lora", "Merriweather", "Georgia", "Times New Roman", serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: #5C1A0A;
 }
 
 button,

@@ -15,7 +15,7 @@ export function Dialog({ open, title, children, onClose, className }: DialogProp
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-secondary p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-palette-red900/35 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
       <div className={cn("max-h-[92vh] w-full overflow-auto rounded-t-lg border bg-card shadow-soft sm:max-w-2xl sm:rounded-lg", className)}>
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-card px-5 py-4">
           <h2 className="text-lg font-semibold">{title}</h2>

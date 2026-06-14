@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { Clock } from "lucide-react";
 import type { ScheduleBlock } from "../../types";
+import { getSubtleColorFill, withAlpha } from "../../lib/color";
 import { formatTime } from "../../lib/date";
 import { cn } from "../../lib/utils";
 
@@ -15,14 +16,21 @@ export function ScheduleBlockCard({
   compact?: boolean;
   style?: CSSProperties;
 }) {
+  const isPositioned = style?.position === "absolute";
+
   return (
     <button
       type="button"
       className={cn(
-        "w-full overflow-hidden rounded-md border-l-4 bg-card p-3 text-left shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "overflow-hidden rounded-md border p-3 text-left shadow-soft transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        isPositioned ? "w-auto" : "w-full",
         compact ? "space-y-1" : "space-y-2"
       )}
-      style={{ borderLeftColor: block.template.color, ...style }}
+      style={{
+        borderColor: withAlpha(block.template.color, 0.42),
+        backgroundColor: getSubtleColorFill(block.template.color),
+        ...style
+      }}
       onClick={onClick}
     >
       <div className="truncate font-semibold">{block.template.name}</div>

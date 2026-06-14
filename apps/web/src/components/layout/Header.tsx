@@ -17,7 +17,7 @@ export function Header() {
   const { user, signOut } = useAuth();
 
   return (
-    <header className="sticky top-0 z-30 border-b bg-background">
+    <header className="sticky top-0 z-30 border-b bg-card/95 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:hidden">{appBrand.name}</div>

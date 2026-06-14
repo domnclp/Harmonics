@@ -125,7 +125,7 @@ export function CreateScheduleBlockDialog({
             await createTemplate.mutateAsync({
               name: temporaryName.trim(),
               description: "One-time block",
-              color: palette.linenSkirt,
+              color: palette.gardenAfterRain,
               icon: "CalendarDays",
               category: "Temporary",
               journalPrompt: null,

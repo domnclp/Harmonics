@@ -1,6 +1,5 @@
-import { Pencil, Save, Trash2, X } from "lucide-react";
+import { Check, Pencil, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { failureReasons } from "../../lib/failureReasons";
 import { dayLabels, formatTime } from "../../lib/date";
 import { recurrenceOptions } from "../../lib/recurrence";
 import { useBlockInstance } from "../../hooks/useBlockInstance";
@@ -27,11 +26,13 @@ export function BlockDetailModal({
   onClose: () => void;
   onDelete: (id: string) => void;
 }) {
-  const { data: instance, isLoading, updateHabit, updateTask, updateJournal } = useBlockInstance(block?.id, date);
+  const { data: instance, isLoading, updateHabit, updateTask, updateJournal, updateInstanceCompletion } = useBlockInstance(block?.id, date);
   const { data: templates = [] } = useTemplates();
   const { updateBlock } = useScheduleBlocks();
   const [journal, setJournal] = useState("");
   const [editing, setEditing] = useState(false);
+  const [incompleteDialogOpen, setIncompleteDialogOpen] = useState(false);
+  const [incompleteReason, setIncompleteReason] = useState("");
   const [editValues, setEditValues] = useState({
     templateId: "",
     dayOfWeek: 0,
@@ -76,7 +77,26 @@ export function BlockDetailModal({
   };
 
   const hasHabits = Boolean(instance?.habitCompletions.length);
+  const completionItems = instance ? [...instance.habitCompletions, ...instance.taskCompletions] : [];
   const showsDayPicker = editValues.recurrenceRule === "WEEKLY" || editValues.recurrenceRule === "CUSTOM";
+  const completionUpdatePending = updateHabit.isPending || updateTask.isPending || updateJournal.isPending || updateInstanceCompletion.isPending;
+
+  const markComplete = async () => {
+    if (!instance) return;
+
+    await updateJournal.mutateAsync({ id: instance.journalEntry.id, content: journal });
+    await updateInstanceCompletion.mutateAsync({ id: instance.id, completed: true, failureReason: null });
+  };
+
+  const markIncomplete = async () => {
+    if (!instance) return;
+
+    const reason = incompleteReason.trim() || null;
+    await updateJournal.mutateAsync({ id: instance.journalEntry.id, content: journal });
+    await updateInstanceCompletion.mutateAsync({ id: instance.id, completed: false, failureReason: reason });
+    setIncompleteDialogOpen(false);
+    setIncompleteReason("");
+  };
 
   return (
     <Dialog open={Boolean(block && date)} onClose={onClose} title={block?.template.name ?? "Block details"} className="sm:max-w-3xl">
@@ -199,14 +219,12 @@ export function BlockDetailModal({
                 title="Habits"
                 items={instance.habitCompletions}
                 onToggle={(item, completed) => updateHabit.mutate({ id: item.id, completed, failureReason: completed ? null : item.failureReason })}
-                onReason={(item, failureReason) => updateHabit.mutate({ id: item.id, failureReason })}
               />
             )}
             <Checklist
               title="Tasks"
               items={instance.taskCompletions}
               onToggle={(item, completed) => updateTask.mutate({ id: item.id, completed, failureReason: completed ? null : item.failureReason })}
-              onReason={(item, failureReason) => updateTask.mutate({ id: item.id, failureReason })}
             />
           </div>
 
@@ -216,11 +234,55 @@ export function BlockDetailModal({
               {instance.template.journalPrompt && <p className="text-sm text-muted-foreground">{instance.template.journalPrompt}</p>}
             </div>
             <Textarea id="journal" value={journal} onChange={(event) => setJournal(event.target.value)} />
-            <Button size="sm" onClick={() => updateJournal.mutate({ id: instance.journalEntry.id, content: journal })}>
-              <Save className="h-4 w-4" />
-              Save journal
-            </Button>
+            {completionItems.some((item) => item.failureReason) && (
+              <p className="text-xs text-muted-foreground">
+                Incomplete reason: {completionItems.find((item) => item.failureReason)?.failureReason}
+              </p>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIncompleteDialogOpen(true)} disabled={completionUpdatePending}>
+                Mark as incomplete
+              </Button>
+              <Button type="button" size="sm" onClick={() => void markComplete()} disabled={completionUpdatePending}>
+                <Check className="h-4 w-4" />
+                Mark as complete
+              </Button>
+            </div>
           </div>
+
+          <Dialog
+            open={incompleteDialogOpen}
+            onClose={() => setIncompleteDialogOpen(false)}
+            title="Incomplete reason"
+            className="sm:max-w-md"
+          >
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void markIncomplete();
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="incomplete-reason">Reason</Label>
+                <Textarea
+                  id="incomplete-reason"
+                  value={incompleteReason}
+                  onChange={(event) => setIncompleteReason(event.target.value)}
+                  placeholder="Why is this block incomplete?"
+                />
+              </div>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button type="button" variant="ghost" onClick={() => setIncompleteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={completionUpdatePending}>
+                  <Save className="h-4 w-4" />
+                  Save reason
+                </Button>
+              </div>
+            </form>
+          </Dialog>
         </div>
       )}
     </Dialog>
@@ -230,13 +292,11 @@ export function BlockDetailModal({
 function Checklist({
   title,
   items,
-  onToggle,
-  onReason
+  onToggle
 }: {
   title: string;
   items: Completion[];
   onToggle: (item: Completion, completed: boolean) => void;
-  onReason: (item: Completion, reason: string | null) => void;
 }) {
   return (
     <section className="rounded-lg border p-4">
@@ -254,14 +314,6 @@ function Checklist({
               />
               <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.title}</span>
             </label>
-            {!item.completed && (
-              <Select value={item.failureReason ?? ""} onChange={(event) => onReason(item, event.target.value || null)}>
-                <option value="">Failure reason</option>
-                {failureReasons.map((reason) => (
-                  <option key={reason} value={reason}>{reason}</option>
-                ))}
-              </Select>
-            )}
           </div>
         ))}
       </div>

@@ -6,6 +6,11 @@ type CompletionUpdate = {
   failureReason?: string | null;
 };
 
+type InstanceCompletionUpdate = {
+  completed: boolean;
+  failureReason?: string | null;
+};
+
 const updateInstanceCompletion = async (instanceId: string) => {
   const [habits, tasks] = await Promise.all([
     prisma.habitCompletion.findMany({ where: { instanceId }, select: { completed: true } }),
@@ -52,5 +57,33 @@ export const completionService = {
     });
     const completionPercentage = await updateInstanceCompletion(completion.instanceId);
     return { ...updated, instanceCompletionPercentage: completionPercentage };
+  },
+
+  async updateInstance(userId: string, instanceId: string, input: InstanceCompletionUpdate) {
+    const instance = await prisma.blockInstance.findFirst({
+      where: { id: instanceId, userId },
+      select: { id: true }
+    });
+    if (!instance) throw new AppError(404, "Block instance not found");
+
+    await prisma.$transaction([
+      prisma.habitCompletion.updateMany({
+        where: { instanceId },
+        data: {
+          completed: input.completed,
+          failureReason: input.completed ? null : input.failureReason ?? null
+        }
+      }),
+      prisma.taskCompletion.updateMany({
+        where: { instanceId },
+        data: {
+          completed: input.completed,
+          failureReason: input.completed ? null : input.failureReason ?? null
+        }
+      })
+    ]);
+
+    const completionPercentage = await updateInstanceCompletion(instanceId);
+    return { instanceId, completionPercentage };
   }
 };

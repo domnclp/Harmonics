@@ -9,11 +9,11 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants: Record<ButtonVariant, string> = {
-  default: "bg-primary text-primary-foreground hover:bg-secondary hover:text-secondary-foreground",
-  secondary: "bg-secondary text-secondary-foreground hover:bg-palette-wheat hover:text-primary",
-  outline: "border bg-background hover:bg-muted",
-  ghost: "hover:bg-muted",
-  destructive: "bg-destructive text-destructive-foreground hover:bg-accent hover:text-destructive"
+  default: "bg-primary text-primary-foreground shadow-soft hover:bg-palette-red800",
+  secondary: "bg-secondary text-secondary-foreground hover:bg-mauve-200",
+  outline: "border bg-card hover:border-primary hover:bg-muted",
+  ghost: "hover:bg-muted hover:text-primary",
+  destructive: "bg-palette-red600 text-primary-foreground shadow-soft hover:bg-palette-red800"
 };
 
 const sizes = {

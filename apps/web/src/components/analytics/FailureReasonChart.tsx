@@ -6,7 +6,7 @@ export function FailureReasonChart({ data }: { data: { name: string; value: numb
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Failure reasons</CardTitle>
+        <CardTitle>Incomplete reasons</CardTitle>
       </CardHeader>
       <CardContent className="h-72">
         <ResponsiveContainer width="100%" height="100%">
