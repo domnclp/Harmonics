@@ -54,30 +54,28 @@ const decodeBase64UrlJson = <T>(value: string): T => JSON.parse(Buffer.from(valu
 const verifyTokenLocally = (token: string): VerifiedTokenUser | null => {
   if (!env.SUPABASE_JWT_SECRET) return null;
 
-  const [encodedHeader, encodedPayload, encodedSignature] = token.split(".");
-  if (!encodedHeader || !encodedPayload || !encodedSignature) {
-    throw new AppError(401, "Invalid or expired session");
+  try {
+    const [encodedHeader, encodedPayload, encodedSignature] = token.split(".");
+    if (!encodedHeader || !encodedPayload || !encodedSignature) return null;
+
+    const expectedSignature = createHmac("sha256", env.SUPABASE_JWT_SECRET)
+      .update(`${encodedHeader}.${encodedPayload}`)
+      .digest();
+    const actualSignature = Buffer.from(encodedSignature, "base64url");
+
+    if (expectedSignature.length !== actualSignature.length || !timingSafeEqual(expectedSignature, actualSignature)) return null;
+
+    const payload = decodeBase64UrlJson<SupabaseJwtPayload>(encodedPayload);
+    if (!payload.sub || !payload.email || !payload.exp || payload.exp * 1000 <= Date.now()) return null;
+
+    return {
+      id: payload.sub,
+      email: payload.email,
+      name: getProfileName(payload.user_metadata)
+    };
+  } catch {
+    return null;
   }
-
-  const expectedSignature = createHmac("sha256", env.SUPABASE_JWT_SECRET)
-    .update(`${encodedHeader}.${encodedPayload}`)
-    .digest();
-  const actualSignature = Buffer.from(encodedSignature, "base64url");
-
-  if (expectedSignature.length !== actualSignature.length || !timingSafeEqual(expectedSignature, actualSignature)) {
-    throw new AppError(401, "Invalid or expired session");
-  }
-
-  const payload = decodeBase64UrlJson<SupabaseJwtPayload>(encodedPayload);
-  if (!payload.sub || !payload.email || !payload.exp || payload.exp * 1000 <= Date.now()) {
-    throw new AppError(401, "Invalid or expired session");
-  }
-
-  return {
-    id: payload.sub,
-    email: payload.email,
-    name: getProfileName(payload.user_metadata)
-  };
 };
 
 const verifyTokenWithSupabase = async (token: string): Promise<VerifiedTokenUser> => {
