@@ -6,6 +6,7 @@ import morgan from "morgan";
 import { env } from "./config/env.js";
 import { requireAuth } from "./middleware/auth.middleware.js";
 import { errorHandler, notFound } from "./middleware/error.middleware.js";
+import { prisma } from "./prisma/client.js";
 import { analyticsRoutes } from "./routes/analytics.routes.js";
 import { blockInstanceRoutes } from "./routes/blockInstance.routes.js";
 import { completionRoutes } from "./routes/completion.routes.js";
@@ -51,6 +52,25 @@ app.get("/", (_req, res) => {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/health/db", async (_req, res, next) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      ok: true,
+      database: "reachable",
+      config: {
+        hasDatabaseUrl: Boolean(env.DATABASE_URL),
+        hasSupabaseUrl: Boolean(env.SUPABASE_URL),
+        hasServiceRoleKey: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
+        hasJwtSecret: Boolean(env.SUPABASE_JWT_SECRET),
+        corsOrigins: env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean).length
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use("/api/schedules", requireAuth, scheduleRoutes);

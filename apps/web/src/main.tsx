@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { App } from "./app/App";
 import { AuthProvider } from "./hooks/useAuth";
 import "./index.css";
@@ -23,6 +24,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <App />
+        <SpeedInsights />
       </AuthProvider>
     </QueryClientProvider>
   </React.StrictMode>

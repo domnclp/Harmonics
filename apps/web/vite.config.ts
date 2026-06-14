@@ -6,10 +6,12 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ["react", "react-dom", "react-router-dom"],
-          query: ["@tanstack/react-query"],
-          supabase: ["@supabase/supabase-js"]
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("react") || id.includes("react-dom") || id.includes("react-router-dom")) return "react";
+          if (id.includes("@tanstack/react-query")) return "query";
+          if (id.includes("@supabase/supabase-js")) return "supabase";
+          return undefined;
         }
       }
     }
