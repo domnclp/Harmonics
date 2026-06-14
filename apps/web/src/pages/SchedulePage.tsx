@@ -41,7 +41,7 @@ export function SchedulePage() {
             <h2 className="mt-1 text-2xl font-semibold">
               Weekly timetable{" "}
               <span className="align-baseline text-sm font-medium text-muted-foreground">
-                --- {formatWeekDate(weekStart)} to {formatWeekDate(weekEnd)}
+                — {formatWeekDate(weekStart)} to {formatWeekDate(weekEnd)}
               </span>
             </h2>
           </div>
