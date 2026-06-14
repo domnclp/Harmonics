@@ -10,6 +10,7 @@
     "dev": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .vscode/start-dev.ps1",
     "build": "npm run build --workspace @harmonics/api && npm run build --workspace @harmonics/web",
     "lint": "npm run lint --workspace @harmonics/web",
+    "perf:audit": "npm run perf:audit --workspace @harmonics/web",
     "prisma:generate": "npm run prisma:generate --workspace @harmonics/api",
     "prisma:migrate": "npm run prisma:migrate --workspace @harmonics/api"
   },
