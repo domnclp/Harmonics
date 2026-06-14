@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
 
-export const API_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:4000").replace(/\/+$/, "");
+const normalizeEnvUrl = (value: string) => value.replace(/^[A-Z0-9_]+=/, "").replace(/\/+$/, "");
+
+export const API_URL = normalizeEnvUrl(import.meta.env.VITE_API_URL ?? "http://localhost:4000");
 
 type ApiOptions = Omit<RequestInit, "body"> & {
   body?: BodyInit | Record<string, unknown> | Record<string, unknown>[];
