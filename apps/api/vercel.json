@@ -1,0 +1,9 @@
+{
+  "outputDirectory": ".",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/src/app.ts"
+    }
+  ]
+}
