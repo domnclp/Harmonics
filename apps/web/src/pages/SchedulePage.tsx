@@ -1,6 +1,7 @@
 import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "../components/ui/button";
+import { LoadError } from "../components/ui/load-error";
 import { CreateScheduleBlockDialog } from "../components/schedule/CreateScheduleBlockDialog";
 import { WeeklyScheduleGrid } from "../components/schedule/WeeklyScheduleGrid";
 import { MobileDayTimeline } from "../components/schedule/MobileDayTimeline";
@@ -23,7 +24,7 @@ export function SchedulePage() {
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date(), weekStartsOn));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selected, setSelected] = useState<SelectedBlock | null>(null);
-  const { data: blocks = [], isLoading, deleteBlock } = useScheduleBlocks();
+  const { data: blocks = [], error, isError, isLoading, deleteBlock } = useScheduleBlocks();
 
   useEffect(() => {
     setWeekStart((current) => getWeekStart(current, weekStartsOn));
@@ -70,6 +71,8 @@ export function SchedulePage() {
 
       {isLoading ? (
         <p className="text-muted-foreground">Loading schedule...</p>
+      ) : isError ? (
+        <LoadError label="schedule" error={error} />
       ) : (
         <>
           <WeeklyScheduleGrid blocks={blocks} weekStart={weekStart} weekStartsOn={weekStartsOn} onOpenBlock={(block, date) => setSelected({ block, date })} />

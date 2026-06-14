@@ -19,12 +19,20 @@ export const app = express();
 const helmetMiddleware = (helmet.default as unknown as () => RequestHandler)();
 const normalizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, "");
 const allowedOrigins = env.CORS_ORIGIN.split(",").map(normalizeOrigin).filter(Boolean);
+const isAllowedOrigin = (origin: string) => {
+  const normalizedOrigin = normalizeOrigin(origin);
+  return (
+    allowedOrigins.includes("*") ||
+    allowedOrigins.includes(normalizedOrigin) ||
+    normalizedOrigin.endsWith(".vercel.app")
+  );
+};
 
 app.use(helmetMiddleware);
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
+      if (!origin || isAllowedOrigin(origin)) {
         callback(null, true);
         return;
       }

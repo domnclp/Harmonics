@@ -4,13 +4,14 @@ import { Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { TemplateCard } from "../components/templates/TemplateCard";
 import { TemplateForm, type TemplateFormValues } from "../components/templates/TemplateForm";
+import { LoadError } from "../components/ui/load-error";
 import { useTemplates } from "../hooks/useTemplates";
 import type { BlockTemplate } from "../types";
 
 export function TemplatesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<BlockTemplate | undefined>();
-  const { data: templates = [], isLoading, createTemplate, updateTemplate, deleteTemplate } = useTemplates();
+  const { data: templates = [], error, isError, isLoading, createTemplate, updateTemplate, deleteTemplate } = useTemplates();
 
   const submit = (values: TemplateFormValues) => {
     const payload = {
@@ -44,7 +45,8 @@ export function TemplatesPage() {
       </div>
 
       {isLoading && <p className="text-muted-foreground">Loading templates...</p>}
-      {!isLoading && templates.length === 0 && (
+      {isError && <LoadError label="templates" error={error} />}
+      {!isLoading && !isError && templates.length === 0 && (
         <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
           Create your first reusable routine block.
         </div>

@@ -2,6 +2,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { LoadError } from "../components/ui/load-error";
 import { ProgressSummary } from "../components/dashboard/ProgressSummary";
 import { CreateScheduleBlockDialog } from "../components/schedule/CreateScheduleBlockDialog";
 import { BlockDetailModal } from "../components/schedule/BlockDetailModal";
@@ -58,7 +59,7 @@ export function DashboardPage() {
   const timelineEnd = toMinutes(scheduleWindow.endTime);
   const timelineSlots = getTimeSlots(scheduleWindow.startTime, scheduleWindow.endTime);
   const timelineHeight = timelineSlots.length * rowHeight;
-  const { data: blocks = [], deleteBlock } = useScheduleBlocks();
+  const { data: blocks = [], error: blocksError, isError: blocksIsError, deleteBlock } = useScheduleBlocks();
   const dayBlocks = blocks
     .filter((block) => blockOccursOnDate(block, dateKey))
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -86,6 +87,9 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {blocksIsError && <LoadError label="schedule blocks" error={blocksError} />}
+      {instances.isError && <LoadError label="dashboard instances" error={instances.error} />}
+
       <div className="flex flex-col justify-between gap-4 text-left lg:flex-row lg:items-end">
         <div className="w-full max-w-2xl self-start text-left">
           <h2 className="mt-1 text-3xl font-semibold">Daily overview</h2>
