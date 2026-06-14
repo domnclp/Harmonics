@@ -3,12 +3,14 @@ import { CalendarPlus, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { addDays, dayLabels, getMonday, toDateKey } from "../../lib/date";
+import { getDateForDayOfWeek, getDayOptions, getWeekStart, toDateKey } from "../../lib/date";
 import { palette } from "../../lib/palette";
 import { recurrenceOptions, type RecurrenceRule } from "../../lib/recurrence";
 import { useScheduleBlocks } from "../../hooks/useScheduleBlocks";
 import { useSchedules } from "../../hooks/useSchedules";
 import { useTemplates } from "../../hooks/useTemplates";
+import { useScheduleWindow } from "../../hooks/useScheduleWindow";
+import { useWeekStartsOn } from "../../hooks/useWeekStartsOn";
 import { Button } from "../ui/button";
 import { Dialog } from "../ui/dialog";
 import { Input } from "../ui/input";
@@ -36,8 +38,11 @@ export function CreateScheduleBlockDialog({
   const { data: schedules = [], createSchedule } = useSchedules();
   const { createBlocks } = useScheduleBlocks();
   const { data: templates = [], createTemplate } = useTemplates();
+  const scheduleWindow = useScheduleWindow();
+  const weekStartsOn = useWeekStartsOn();
   const defaultDate = initialDate ?? new Date();
   const defaultDay = defaultDate.getDay() === 0 ? 6 : defaultDate.getDay() - 1;
+  const dayOptions = getDayOptions(weekStartsOn);
   const [mode, setMode] = useState<"template" | "temporary">("template");
   const [selectedDays, setSelectedDays] = useState<number[]>([defaultDay]);
   const [temporaryDate, setTemporaryDate] = useState(toDateKey(defaultDate));
@@ -47,8 +52,8 @@ export function CreateScheduleBlockDialog({
     resolver: zodResolver(schema),
     defaultValues: {
       templateId: templates[0]?.id ?? "",
-      startTime: "06:30",
-      endTime: "07:00",
+      startTime: scheduleWindow.startTime,
+      endTime: scheduleWindow.endTime,
       recurrenceRule: "WEEKLY"
     }
   });
@@ -137,7 +142,7 @@ export function CreateScheduleBlockDialog({
         : values.templateId!;
 
     const recurrenceRule = mode === "temporary" ? "ONCE" : values.recurrenceRule;
-    const monday = getMonday(defaultDate);
+    const weekStart = getWeekStart(defaultDate, weekStartsOn);
     const temporaryDateValue = new Date(`${temporaryDate}T00:00:00`);
     const temporaryDay = temporaryDateValue.getDay() === 0 ? 6 : temporaryDateValue.getDay() - 1;
     const daysToCreate =
@@ -147,7 +152,7 @@ export function CreateScheduleBlockDialog({
 
     await createBlocks.mutateAsync(
       daysToCreate.map((dayOfWeek) => {
-        const anchorDate = mode === "temporary" ? temporaryDate : toDateKey(addDays(monday, dayOfWeek));
+        const anchorDate = mode === "temporary" ? temporaryDate : toDateKey(getDateForDayOfWeek(weekStart, dayOfWeek, weekStartsOn));
 
         return {
           scheduleId,
@@ -269,10 +274,10 @@ export function CreateScheduleBlockDialog({
               <div className="space-y-2">
                 <Label>Day or days</Label>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {dayLabels.map((day, index) => (
-                    <label key={day} className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
-                      <input type="checkbox" className="h-4 w-4 accent-primary" checked={selectedDays.includes(index)} onChange={() => toggleDay(index)} />
-                      {day}
+                  {dayOptions.map(({ label, dayOfWeek }) => (
+                    <label key={label} className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+                      <input type="checkbox" className="h-4 w-4 accent-primary" checked={selectedDays.includes(dayOfWeek)} onChange={() => toggleDay(dayOfWeek)} />
+                      {label}
                     </label>
                   ))}
                 </div>

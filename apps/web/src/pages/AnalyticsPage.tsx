@@ -3,12 +3,14 @@ import { BlockCompletionChart } from "../components/analytics/BlockCompletionCha
 import { FailureReasonChart } from "../components/analytics/FailureReasonChart";
 import { WeeklyCompletionChart } from "../components/analytics/WeeklyCompletionChart";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { getMonday, toDateKey } from "../lib/date";
+import { getWeekStart, toDateKey } from "../lib/date";
 import { palette } from "../lib/palette";
 import { useAnalytics } from "../hooks/useAnalytics";
+import { useWeekStartsOn } from "../hooks/useWeekStartsOn";
 
 export function AnalyticsPage() {
-  const weekStart = toDateKey(getMonday());
+  const weekStartsOn = useWeekStartsOn();
+  const weekStart = toDateKey(getWeekStart(new Date(), weekStartsOn));
   const { weekly, templates, failureReasons } = useAnalytics(weekStart);
   const weeklyData = weekly.data;
   const templateData = templates.data;

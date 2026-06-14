@@ -7,26 +7,19 @@ import { CreateScheduleBlockDialog } from "../components/schedule/CreateSchedule
 import { BlockDetailModal } from "../components/schedule/BlockDetailModal";
 import { apiFetch } from "../lib/api";
 import { getSubtleColorFill, withAlpha } from "../lib/color";
-import { addDays, formatTime, toDateKey, toMinutes } from "../lib/date";
+import { addDays, formatTime, getTimeSlots, toDateKey, toMinutes } from "../lib/date";
 import { blockOccursOnDate } from "../lib/recurrence";
 import { getColumnStyle, getPositionedBlocks } from "../lib/scheduleLayout";
 import { cn } from "../lib/utils";
 import { useScheduleBlocks } from "../hooks/useScheduleBlocks";
+import { useScheduleWindow } from "../hooks/useScheduleWindow";
 import type { BlockInstance, ScheduleBlock } from "../types";
 import { useState } from "react";
 
 type SelectedBlock = { block: ScheduleBlock; date: string };
 
-const timelineStart = 6 * 60;
-const timelineEnd = 23 * 60;
 const rowHeight = 52;
-const timelineSlots = Array.from({ length: (timelineEnd - timelineStart) / 30 + 1 }, (_, index) => {
-  const minutes = timelineStart + index * 30;
-  const hour = Math.floor(minutes / 60);
-  const minute = minutes % 60;
-  return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
-});
-const timelineHeight = timelineSlots.length * rowHeight;
+const blockInset = 6;
 
 const getDateLabel = (date: Date) => {
   const today = toDateKey(new Date());
@@ -38,11 +31,13 @@ const getDateLabel = (date: Date) => {
 const getFullDateLabel = (date: Date) => new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(date);
 const isSameDate = (left: Date, right: Date) => toDateKey(left) === toDateKey(right);
 
-const getBlockStyle = (block: ScheduleBlock, column: number, columns: number) => {
+const getBlockStyle = (block: ScheduleBlock, column: number, columns: number, timelineStart: number, timelineEnd: number) => {
   const start = Math.max(toMinutes(block.startTime), timelineStart);
   const end = Math.min(toMinutes(block.endTime), timelineEnd);
-  const top = ((start - timelineStart) / 30) * rowHeight;
-  const height = Math.max(((end - start) / 30) * rowHeight - 6, 50);
+  if (end <= start) return null;
+
+  const top = ((start - timelineStart) / 30) * rowHeight + blockInset;
+  const height = Math.max(((end - start) / 30) * rowHeight - blockInset * 2, 40);
 
   return {
     top,
@@ -58,6 +53,11 @@ export function DashboardPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const dateKey = toDateKey(activeDate);
   const [selected, setSelected] = useState<SelectedBlock | null>(null);
+  const scheduleWindow = useScheduleWindow();
+  const timelineStart = toMinutes(scheduleWindow.startTime);
+  const timelineEnd = toMinutes(scheduleWindow.endTime);
+  const timelineSlots = getTimeSlots(scheduleWindow.startTime, scheduleWindow.endTime);
+  const timelineHeight = timelineSlots.length * rowHeight;
   const { data: blocks = [], deleteBlock } = useScheduleBlocks();
   const dayBlocks = blocks
     .filter((block) => blockOccursOnDate(block, dateKey))
@@ -86,9 +86,8 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <div className="max-w-2xl">
-          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Dashboard</p>
+      <div className="flex flex-col justify-between gap-4 text-left lg:flex-row lg:items-end">
+        <div className="w-full max-w-2xl self-start text-left">
           <h2 className="mt-1 text-3xl font-semibold">Daily overview</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {getFullDateLabel(activeDate)} · Review the day&apos;s rhythm, progress, and next block.
@@ -169,7 +168,7 @@ export function DashboardPage() {
                     style={{ gridTemplateColumns: "78px 1fr", height: rowHeight }}
                   >
                     <div className={cn("pr-3 pt-2 text-right font-medium uppercase", isHour ? "text-[11px] text-foreground" : "text-[10px] text-muted-foreground")}>
-                      {isHour ? formatTime(time).toLowerCase() : ""}
+                      {formatTime(time).toLowerCase()}
                     </div>
                     <div className="border-l border-border/70" />
                   </div>
@@ -188,20 +187,25 @@ export function DashboardPage() {
               {dayBlocks.length === 0 ? (
                 <div className="mx-4 mt-10 rounded-md border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">No blocks scheduled.</div>
               ) : (
-                positionedDayBlocks.map(({ block, column, columns }) => (
-                  <button
-                    key={block.id}
-                    type="button"
-                    className="absolute overflow-hidden rounded-md border px-3 py-1.5 text-left shadow-soft transition hover:scale-[1.01] hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    style={getBlockStyle(block, column, columns)}
-                    onClick={() => setSelected({ block, date: dateKey })}
-                  >
-                    <div className="truncate text-sm font-semibold leading-tight">{block.template.name}</div>
-                    <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                      {formatTime(block.startTime).toLowerCase()} - {formatTime(block.endTime).toLowerCase()}
-                    </div>
-                  </button>
-                ))
+                positionedDayBlocks.map(({ block, column, columns }) => {
+                  const style = getBlockStyle(block, column, columns, timelineStart, timelineEnd);
+                  if (!style) return null;
+
+                  return (
+                    <button
+                      key={block.id}
+                      type="button"
+                      className="absolute overflow-hidden rounded-md border px-3 py-1.5 text-left text-cream-100 shadow-soft transition hover:scale-[1.01] hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      style={style}
+                      onClick={() => setSelected({ block, date: dateKey })}
+                    >
+                      <div className="whitespace-normal break-words text-sm font-semibold leading-tight">{block.template.name}</div>
+                      <div className="mt-0.5 truncate text-[11px] leading-tight text-cream-100">
+                        {formatTime(block.startTime).toLowerCase()} - {formatTime(block.endTime).toLowerCase()}
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
@@ -218,7 +222,7 @@ export function DashboardPage() {
               {nextBlock ? (
                 <button
                   type="button"
-                  className="w-full rounded-md border p-4 text-left transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="w-full rounded-md border p-4 text-left text-cream-100 transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   style={{
                     borderColor: withAlpha(nextBlock.template.color, 0.42),
                     backgroundColor: getSubtleColorFill(nextBlock.template.color)
@@ -226,7 +230,7 @@ export function DashboardPage() {
                   onClick={() => setSelected({ block: nextBlock, date: dateKey })}
                 >
                   <div className="font-semibold">{nextBlock.template.name}</div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-sm text-cream-100">
                     {formatTime(nextBlock.startTime)} - {formatTime(nextBlock.endTime)}
                   </div>
                 </button>

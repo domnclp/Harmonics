@@ -1,28 +1,34 @@
 import type { ScheduleBlock } from "../../types";
-import { addDays, dayLabels, formatTime, getMonday, timeSlots, toDateKey, toMinutes } from "../../lib/date";
+import { addDays, formatTime, getDayOptions, getTimeSlots, toDateKey, toMinutes, type WeekStartsOn } from "../../lib/date";
 import { blockOccursOnDate } from "../../lib/recurrence";
 import { getColumnStyle, getPositionedBlocks } from "../../lib/scheduleLayout";
 import { cn } from "../../lib/utils";
+import { useScheduleWindow } from "../../hooks/useScheduleWindow";
 import { ScheduleBlockCard } from "./ScheduleBlockCard";
 
 const slotHeight = 44;
-const startMinutes = 6 * 60;
+const blockInset = 5;
 
 export function WeeklyScheduleGrid({
   blocks,
   weekStart,
+  weekStartsOn,
   onOpenBlock
 }: {
   blocks: ScheduleBlock[];
   weekStart: Date;
+  weekStartsOn: WeekStartsOn;
   onOpenBlock: (block: ScheduleBlock, date: string) => void;
 }) {
-  const monday = getMonday(weekStart);
+  const scheduleWindow = useScheduleWindow();
+  const startMinutes = toMinutes(scheduleWindow.startTime);
+  const endMinutes = toMinutes(scheduleWindow.endTime);
+  const timeSlots = getTimeSlots(scheduleWindow.startTime, scheduleWindow.endTime);
   const todayKey = toDateKey(new Date());
-  const weekDays = dayLabels.map((day, index) => {
-    const date = toDateKey(addDays(monday, index));
+  const weekDays = getDayOptions(weekStartsOn).map(({ label }, index) => {
+    const date = toDateKey(addDays(weekStart, index));
     const dayBlocks = blocks.filter((block) => blockOccursOnDate(block, date));
-    return { day, date, blocks: dayBlocks };
+    return { day: label, date, blocks: dayBlocks };
   });
 
   return (
@@ -54,7 +60,7 @@ export function WeeklyScheduleGrid({
                 key={slot}
                 className={cn("h-11 border-b px-3 py-2 text-right text-xs", isHour ? "font-semibold text-foreground" : "text-muted-foreground")}
               >
-                {isHour ? formatTime(slot).toLowerCase() : ""}
+                {formatTime(slot).toLowerCase()}
               </div>
             );
           })}
@@ -78,8 +84,12 @@ export function WeeklyScheduleGrid({
                 </div>
               )}
               {positioned.map(({ block, column, columns }) => {
-                const top = ((toMinutes(block.startTime) - startMinutes) / 30) * slotHeight;
-                const height = Math.max(42, ((toMinutes(block.endTime) - toMinutes(block.startTime)) / 30) * slotHeight - 6);
+                const visibleStart = Math.max(toMinutes(block.startTime), startMinutes);
+                const visibleEnd = Math.min(toMinutes(block.endTime), endMinutes);
+                if (visibleEnd <= visibleStart) return null;
+
+                const top = ((visibleStart - startMinutes) / 30) * slotHeight + blockInset;
+                const height = Math.max(34, ((visibleEnd - visibleStart) / 30) * slotHeight - blockInset * 2);
                 return (
                   <ScheduleBlockCard
                     key={block.id}

@@ -22,9 +22,9 @@ export function ScheduleBlockCard({
     <button
       type="button"
       className={cn(
-        "overflow-hidden rounded-md border p-3 text-left shadow-soft transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "overflow-hidden rounded-md border p-3 text-cream-100 shadow-soft transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         isPositioned ? "w-auto" : "w-full",
-        compact ? "space-y-1" : "space-y-2"
+        compact ? "flex items-center justify-center text-center" : "space-y-2 text-left"
       )}
       style={{
         borderColor: withAlpha(block.template.color, 0.42),
@@ -33,12 +33,16 @@ export function ScheduleBlockCard({
       }}
       onClick={onClick}
     >
-      <div className="truncate font-semibold">{block.template.name}</div>
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Clock className="h-3.5 w-3.5" />
-        {formatTime(block.startTime)} - {formatTime(block.endTime)}
+      <div className={cn("min-w-0", compact ? "w-full px-1" : "")}>
+        <div className="whitespace-normal break-words font-semibold leading-snug">{block.template.name}</div>
+        {!compact && (
+          <div className="flex items-center gap-1 text-xs text-cream-100">
+            <Clock className="h-3.5 w-3.5" />
+            {formatTime(block.startTime)} - {formatTime(block.endTime)}
+          </div>
+        )}
       </div>
-      {!compact && <p className="line-clamp-2 text-xs text-muted-foreground">{block.template.description || block.template.category}</p>}
+      {!compact && <p className="line-clamp-2 text-xs text-cream-100">{block.template.description || block.template.category}</p>}
     </button>
   );
 }

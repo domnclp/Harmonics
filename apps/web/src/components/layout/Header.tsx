@@ -18,7 +18,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30 border-b bg-card/95 backdrop-blur">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 w-full max-w-[96rem] items-center justify-between px-4 sm:px-6 lg:px-8">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:hidden">{appBrand.name}</div>
           <h1 className="text-xl font-semibold">{titles[location.pathname] ?? appBrand.name}</h1>

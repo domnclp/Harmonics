@@ -1,16 +1,35 @@
+export type WeekStartsOn = "monday" | "sunday";
+
 export const dayLabels = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 export const dayShortLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+export const sundayFirstDayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const sundayFirstDayShortLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export const timeSlots = Array.from({ length: 35 }, (_, index) => {
-  const totalMinutes = 6 * 60 + index * 30;
+export const getDayOptions = (weekStartsOn: WeekStartsOn = "monday") => {
+  const labels = weekStartsOn === "sunday" ? sundayFirstDayLabels : dayLabels;
+  return labels.map((label) => ({
+    label,
+    dayOfWeek: label === "Sunday" ? 6 : dayLabels.indexOf(label)
+  }));
+};
+
+const toTimeString = (totalMinutes: number) => {
   const hour = Math.floor(totalMinutes / 60);
   const minute = totalMinutes % 60;
   return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
-});
+};
 
 export const toMinutes = (time: string) => {
   const [hour, minute] = time.split(":").map(Number);
   return hour * 60 + minute;
+};
+
+export const getTimeSlots = (startTime = "06:00", endTime = "23:00"): string[] => {
+  const start = toMinutes(startTime);
+  const end = toMinutes(endTime);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return getTimeSlots();
+
+  return Array.from({ length: Math.floor((end - start) / 30) + 1 }, (_, index) => toTimeString(start + index * 30));
 };
 
 export const formatTime = (time: string, use24Hour = false) => {
@@ -28,6 +47,20 @@ export const getMonday = (date = new Date()) => {
   monday.setDate(date.getDate() + diff);
   monday.setHours(0, 0, 0, 0);
   return monday;
+};
+
+export const getWeekStart = (date = new Date(), weekStartsOn: WeekStartsOn = "monday") => {
+  if (weekStartsOn === "monday") return getMonday(date);
+
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - date.getDay());
+  sunday.setHours(0, 0, 0, 0);
+  return sunday;
+};
+
+export const getDateForDayOfWeek = (weekStart: Date, dayOfWeek: number, weekStartsOn: WeekStartsOn = "monday") => {
+  const offset = weekStartsOn === "sunday" ? (dayOfWeek === 6 ? 0 : dayOfWeek + 1) : dayOfWeek;
+  return addDays(weekStart, offset);
 };
 
 export const addDays = (date: Date, days: number) => {

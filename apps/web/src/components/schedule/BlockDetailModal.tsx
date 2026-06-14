@@ -1,10 +1,11 @@
 import { Check, Pencil, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { dayLabels, formatTime } from "../../lib/date";
+import { formatTime, getDayOptions } from "../../lib/date";
 import { recurrenceOptions } from "../../lib/recurrence";
 import { useBlockInstance } from "../../hooks/useBlockInstance";
 import { useScheduleBlocks } from "../../hooks/useScheduleBlocks";
 import { useTemplates } from "../../hooks/useTemplates";
+import { useWeekStartsOn } from "../../hooks/useWeekStartsOn";
 import type { Completion, ScheduleBlock } from "../../types";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -29,6 +30,8 @@ export function BlockDetailModal({
   const { data: instance, isLoading, updateHabit, updateTask, updateJournal, updateInstanceCompletion } = useBlockInstance(block?.id, date);
   const { data: templates = [] } = useTemplates();
   const { updateBlock } = useScheduleBlocks();
+  const weekStartsOn = useWeekStartsOn();
+  const dayOptions = getDayOptions(weekStartsOn);
   const [journal, setJournal] = useState("");
   const [editing, setEditing] = useState(false);
   const [incompleteDialogOpen, setIncompleteDialogOpen] = useState(false);
@@ -177,8 +180,8 @@ export function BlockDetailModal({
                       value={editValues.dayOfWeek}
                       onChange={(event) => setEditValues((values) => ({ ...values, dayOfWeek: Number(event.target.value) }))}
                     >
-                      {dayLabels.map((day, index) => (
-                        <option key={day} value={index}>{day}</option>
+                      {dayOptions.map(({ label, dayOfWeek }) => (
+                        <option key={label} value={dayOfWeek}>{label}</option>
                       ))}
                     </Select>
                   </div>

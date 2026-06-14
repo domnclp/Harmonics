@@ -9,4 +9,4 @@ export const withAlpha = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-export const getSubtleColorFill = (hex: string) => withAlpha(hex, 0.48);
+export const getSubtleColorFill = (hex: string) => hex;

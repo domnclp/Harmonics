@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ScheduleBlock } from "../../types";
-import { addDays, dayShortLabels, formatTime, getMonday, toDateKey } from "../../lib/date";
+import { addDays, formatTime, getDayOptions, toDateKey, type WeekStartsOn } from "../../lib/date";
 import { blockOccursOnDate } from "../../lib/recurrence";
 import { cn } from "../../lib/utils";
 import { Tabs, TabButton } from "../ui/tabs";
@@ -9,22 +9,23 @@ import { ScheduleBlockCard } from "./ScheduleBlockCard";
 export function MobileDayTimeline({
   blocks,
   weekStart,
+  weekStartsOn,
   onOpenBlock
 }: {
   blocks: ScheduleBlock[];
   weekStart: Date;
+  weekStartsOn: WeekStartsOn;
   onOpenBlock: (block: ScheduleBlock, date: string) => void;
 }) {
   const [activeDay, setActiveDay] = useState(0);
-  const monday = getMonday(weekStart);
-  const date = toDateKey(addDays(monday, activeDay));
+  const date = toDateKey(addDays(weekStart, activeDay));
   const todayKey = toDateKey(new Date());
-  const days = dayShortLabels.map((label, index) => {
-    const dayDate = toDateKey(addDays(monday, index));
+  const days = getDayOptions(weekStartsOn).map(({ label }, index) => {
+    const dayDate = toDateKey(addDays(weekStart, index));
     const dayBlocks = blocks
       .filter((block) => blockOccursOnDate(block, dayDate))
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
-    return { label, date: dayDate, blocks: dayBlocks };
+    return { label: label.slice(0, 3), date: dayDate, blocks: dayBlocks };
   });
   const dayBlocks = days[activeDay].blocks;
 
