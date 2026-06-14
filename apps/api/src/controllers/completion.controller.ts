@@ -9,7 +9,8 @@ const completionSchema = z.object({
 
 const instanceCompletionSchema = z.object({
   completed: z.boolean(),
-  failureReason: z.string().max(80).nullable().optional()
+  failureReason: z.string().max(80).nullable().optional(),
+  journalContent: z.string().max(10000).optional()
 });
 
 export const completionController = {

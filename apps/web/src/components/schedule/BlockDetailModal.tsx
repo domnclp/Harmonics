@@ -87,16 +87,25 @@ export function BlockDetailModal({
   const markComplete = async () => {
     if (!instance) return;
 
-    await updateJournal.mutateAsync({ id: instance.journalEntry.id, content: journal });
-    await updateInstanceCompletion.mutateAsync({ id: instance.id, completed: true, failureReason: null });
+    await updateInstanceCompletion.mutateAsync({
+      id: instance.id,
+      completed: true,
+      failureReason: null,
+      journalContent: journal
+    });
+    onClose();
   };
 
   const markIncomplete = async () => {
     if (!instance) return;
 
     const reason = incompleteReason.trim() || null;
-    await updateJournal.mutateAsync({ id: instance.journalEntry.id, content: journal });
-    await updateInstanceCompletion.mutateAsync({ id: instance.id, completed: false, failureReason: reason });
+    await updateInstanceCompletion.mutateAsync({
+      id: instance.id,
+      completed: false,
+      failureReason: reason,
+      journalContent: journal
+    });
     setIncompleteDialogOpen(false);
     setIncompleteReason("");
   };

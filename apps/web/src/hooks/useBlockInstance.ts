@@ -16,6 +16,7 @@ type InstanceCompletionUpdate = {
   id: string;
   completed: boolean;
   failureReason?: string | null;
+  journalContent?: string;
 };
 
 const getCompletionPercentage = (instance: BlockInstance) => {
@@ -149,12 +150,12 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
   });
 
   const updateInstanceCompletion = useMutation({
-    mutationFn: ({ id, completed, failureReason }: InstanceCompletionUpdate) =>
+    mutationFn: ({ id, completed, failureReason, journalContent }: InstanceCompletionUpdate) =>
       apiFetch<{ instanceId: string; completionPercentage: number }>(`/api/block-instances/${id}/completions`, {
         method: "PATCH",
-        body: { completed, failureReason }
+        body: { completed, failureReason, journalContent }
       }),
-    onMutate: async ({ completed, failureReason }) => {
+    onMutate: async ({ completed, failureReason, journalContent }) => {
       await queryClient.cancelQueries({ queryKey });
       await queryClient.cancelQueries({ queryKey: dashboardKey });
       const previous = queryClient.getQueryData<BlockInstance>(queryKey);
@@ -170,6 +171,7 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
         return {
           ...current,
           completionPercentage: completed ? 100 : 0,
+          journalEntry: journalContent === undefined ? current.journalEntry : { ...current.journalEntry, content: journalContent },
           habitCompletions: current.habitCompletions.map((item) => ({ ...item, ...patch })),
           taskCompletions: current.taskCompletions.map((item) => ({ ...item, ...patch }))
         };
@@ -186,6 +188,7 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
           return {
             ...item,
             completionPercentage: completed ? 100 : 0,
+            journalEntry: journalContent === undefined ? item.journalEntry : { ...item.journalEntry, content: journalContent },
             habitCompletions: item.habitCompletions.map((completion) => ({ ...completion, ...patch })),
             taskCompletions: item.taskCompletions.map((completion) => ({ ...completion, ...patch }))
           };
