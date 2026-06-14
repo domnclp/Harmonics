@@ -1,4 +1,9 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../prisma/client.js";
+
+type WeeklyBlockInstance = Prisma.BlockInstanceGetPayload<{
+  include: { habitCompletions: true; taskCompletions: true };
+}>;
 
 const addDays = (date: Date, days: number) => {
   const next = new Date(date);
@@ -12,7 +17,7 @@ export const analyticsService = {
   async weekly(userId: string, weekStart: string) {
     const start = dateOnly(weekStart);
     const end = addDays(start, 7);
-    const instances = await prisma.blockInstance.findMany({
+    const instances: WeeklyBlockInstance[] = await prisma.blockInstance.findMany({
       where: { userId, date: { gte: start, lt: end } },
       include: { habitCompletions: true, taskCompletions: true },
       orderBy: { date: "asc" }
