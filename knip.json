@@ -1,0 +1,8 @@
+{
+  "ignoreBinaries": ["powershell.exe"],
+  "workspaces": {
+    "apps/web": {
+      "ignoreDependencies": ["lighthouse"]
+    }
+  }
+}

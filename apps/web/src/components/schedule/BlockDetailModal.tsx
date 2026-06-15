@@ -1,4 +1,4 @@
-import { Check, Pencil, Save, Trash2, X } from "lucide-react";
+import { Pencil, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatTime, getDayOptions } from "../../lib/date";
 import { recurrenceOptions } from "../../lib/recurrence";
@@ -84,15 +84,10 @@ export function BlockDetailModal({
   const showsDayPicker = editValues.recurrenceRule === "WEEKLY" || editValues.recurrenceRule === "CUSTOM";
   const completionUpdatePending = updateHabit.isPending || updateTask.isPending || updateJournal.isPending || updateInstanceCompletion.isPending;
 
-  const markComplete = async () => {
+  const saveProgress = async () => {
     if (!instance) return;
 
-    await updateInstanceCompletion.mutateAsync({
-      id: instance.id,
-      completed: true,
-      failureReason: null,
-      journalContent: journal
-    });
+    await updateJournal.mutateAsync({ id: instance.journalEntry.id, content: journal });
     onClose();
   };
 
@@ -255,9 +250,9 @@ export function BlockDetailModal({
               <Button type="button" variant="outline" size="sm" onClick={() => setIncompleteDialogOpen(true)} disabled={completionUpdatePending}>
                 Mark as incomplete
               </Button>
-              <Button type="button" size="sm" onClick={() => void markComplete()} disabled={completionUpdatePending}>
-                <Check className="h-4 w-4" />
-                Mark as complete
+              <Button type="button" size="sm" onClick={() => void saveProgress()} disabled={completionUpdatePending}>
+                <Save className="h-4 w-4" />
+                Save progress
               </Button>
             </div>
           </div>

@@ -83,5 +83,3 @@ app.use("/api/analytics", requireAuth, analyticsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
-
-export default app;

@@ -13,11 +13,5 @@
     "perf:audit": "npm run perf:audit --workspace @harmonics/web",
     "prisma:generate": "npm run prisma:generate --workspace @harmonics/api",
     "prisma:migrate": "npm run prisma:migrate --workspace @harmonics/api"
-  },
-  "devDependencies": {
-    "supabase": "^2.105.0"
-  },
-  "dependencies": {
-    "@vercel/speed-insights": "^2.0.0"
   }
 }

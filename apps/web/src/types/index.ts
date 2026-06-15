@@ -1,4 +1,4 @@
-export type TemplateItem = {
+type TemplateItem = {
   id: string;
   title: string;
   sortOrder: number;
@@ -42,7 +42,7 @@ export type Completion = {
   failureReason?: string | null;
 };
 
-export type JournalEntry = {
+type JournalEntry = {
   id: string;
   content: string;
 };
@@ -61,12 +61,3 @@ export type BlockInstance = {
   taskCompletions: Completion[];
   journalEntry: JournalEntry;
 };
-
-export type FailureReason =
-  | "Forgot"
-  | "No Time"
-  | "Too Tired"
-  | "Low Motivation"
-  | "Interrupted"
-  | "Not Needed"
-  | "Other";

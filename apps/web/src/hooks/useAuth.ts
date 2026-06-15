@@ -7,6 +7,7 @@ type AuthState = {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  updateProfile: (profile: { name: string; username: string }) => Promise<User>;
   signOut: () => Promise<unknown>;
 };
 
@@ -33,10 +34,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  const updateProfile = async ({ name, username }: { name: string; username: string }) => {
+    const { data, error } = await supabase.auth.updateUser({
+      data: {
+        name,
+        full_name: name,
+        username,
+        user_name: username,
+        preferred_username: username
+      }
+    });
+
+    if (error) throw error;
+    if (data.user) setUser(data.user);
+    return data.user;
+  };
+
   const value = useMemo(() => ({
     session,
     user,
     loading,
+    updateProfile,
     signOut: () => supabase.auth.signOut()
   }), [loading, session, user]);
 

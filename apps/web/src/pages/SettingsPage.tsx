@@ -11,8 +11,27 @@ import { toMinutes, type WeekStartsOn } from "../lib/date";
 
 type ThemeMode = "light" | "dark" | "system";
 
+const getMetadataValue = (metadata: Record<string, unknown> | undefined, keys: string[]) => {
+  for (const key of keys) {
+    const value = metadata?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  return "";
+};
+
 export function SettingsPage() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
+  const name = getMetadataValue(user?.user_metadata, ["name", "full_name"]);
+  const username =
+    getMetadataValue(user?.user_metadata, ["username", "user_name", "preferred_username"]) ||
+    user?.email?.split("@")[0] ||
+    "";
+  const [profileName, setProfileName] = useState(name);
+  const [profileUsername, setProfileUsername] = useState(username);
+  const [profileMessage, setProfileMessage] = useState("");
+  const [profileError, setProfileError] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>((localStorage.getItem("theme") as ThemeMode) ?? "system");
   const [timeFormat, setTimeFormat] = useState(localStorage.getItem("timeFormat") ?? "12");
   const [savedScheduleWindow, setSavedScheduleWindow] = useState(getStoredScheduleWindow);
@@ -21,6 +40,15 @@ export function SettingsPage() {
   const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(getStoredWeekStartsOn);
   const scheduleWindowChanged = scheduleStart !== savedScheduleWindow.startTime || scheduleEnd !== savedScheduleWindow.endTime;
   const scheduleWindowValid = toMinutes(scheduleEnd) > toMinutes(scheduleStart);
+  const profileChanged = profileName.trim() !== name || profileUsername.trim() !== username;
+  const profileValid = Boolean(profileName.trim()) && Boolean(profileUsername.trim());
+
+  useEffect(() => {
+    setProfileName(name);
+    setProfileUsername(username);
+    setProfileMessage("");
+    setProfileError("");
+  }, [name, username]);
 
   useEffect(() => {
     localStorage.setItem("theme", theme);
@@ -46,6 +74,33 @@ export function SettingsPage() {
     setScheduleEnd(savedScheduleWindow.endTime);
   };
 
+  const saveProfile = async () => {
+    if (!profileValid) return;
+
+    setProfileSaving(true);
+    setProfileMessage("");
+    setProfileError("");
+
+    try {
+      await updateProfile({
+        name: profileName.trim(),
+        username: profileUsername.trim()
+      });
+      setProfileMessage("Profile updated.");
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "Could not update profile.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const undoProfile = () => {
+    setProfileName(name);
+    setProfileUsername(username);
+    setProfileMessage("");
+    setProfileError("");
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -60,13 +115,34 @@ export function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Email</Label>
-              <Input value={user?.email ?? ""} readOnly />
+              <Label htmlFor="profileName">Name</Label>
+              <Input id="profileName" value={profileName} onChange={(event) => setProfileName(event.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>User ID</Label>
-              <Input value={user?.id ?? ""} readOnly />
+              <Label htmlFor="profileUsername">Username</Label>
+              <Input id="profileUsername" value={profileUsername} onChange={(event) => setProfileUsername(event.target.value)} />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="profileEmail">Email</Label>
+              <Input id="profileEmail" value={user?.email ?? ""} readOnly />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="profileUserId">User ID</Label>
+              <Input id="profileUserId" value={user?.id ?? ""} disabled aria-disabled="true" />
+            </div>
+            {!profileValid && <p className="text-sm text-destructive">Name and username are required.</p>}
+            {profileError && <p className="text-sm text-destructive">{profileError}</p>}
+            {profileMessage && <p className="text-sm text-primary">{profileMessage}</p>}
+            {profileChanged && (
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={() => void saveProfile()} disabled={!profileValid || profileSaving}>
+                  {profileSaving ? "Saving..." : "Save"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={undoProfile} disabled={profileSaving}>
+                  Undo
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 

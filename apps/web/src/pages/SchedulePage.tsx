@@ -1,5 +1,5 @@
 import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "../components/ui/button";
 import { LoadError } from "../components/ui/load-error";
 import { CreateScheduleBlockDialog } from "../components/schedule/CreateScheduleBlockDialog";
@@ -9,6 +9,7 @@ import { BlockDetailModal } from "../components/schedule/BlockDetailModal";
 import { addDays, getWeekStart, toDateKey } from "../lib/date";
 import { blockOccursOnDate } from "../lib/recurrence";
 import { useScheduleBlocks } from "../hooks/useScheduleBlocks";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useWeekStartsOn } from "../hooks/useWeekStartsOn";
 import type { ScheduleBlock } from "../types";
 
@@ -25,14 +26,18 @@ export function SchedulePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selected, setSelected] = useState<SelectedBlock | null>(null);
   const { data: blocks = [], error, isError, isLoading, deleteBlock } = useScheduleBlocks();
+  const showsDesktopSchedule = useMediaQuery("(min-width: 1024px)");
 
   useEffect(() => {
     setWeekStart((current) => getWeekStart(current, weekStartsOn));
   }, [weekStartsOn]);
 
-  const weekEnd = addDays(weekStart, 6);
-  const weekDates = Array.from({ length: 7 }, (_, index) => toDateKey(addDays(weekStart, index)));
-  const weekBlockCount = blocks.filter((block) => weekDates.some((date) => blockOccursOnDate(block, date))).length;
+  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
+  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => toDateKey(addDays(weekStart, index))), [weekStart]);
+  const weekBlockCount = useMemo(
+    () => blocks.filter((block) => weekDates.some((date) => blockOccursOnDate(block, date))).length,
+    [blocks, weekDates]
+  );
 
   return (
     <div className="space-y-5">
@@ -75,8 +80,11 @@ export function SchedulePage() {
         <LoadError label="schedule" error={error} />
       ) : (
         <>
-          <WeeklyScheduleGrid blocks={blocks} weekStart={weekStart} weekStartsOn={weekStartsOn} onOpenBlock={(block, date) => setSelected({ block, date })} />
-          <MobileDayTimeline blocks={blocks} weekStart={weekStart} weekStartsOn={weekStartsOn} onOpenBlock={(block, date) => setSelected({ block, date })} />
+          {showsDesktopSchedule ? (
+            <WeeklyScheduleGrid blocks={blocks} weekStart={weekStart} weekStartsOn={weekStartsOn} onOpenBlock={(block, date) => setSelected({ block, date })} />
+          ) : (
+            <MobileDayTimeline blocks={blocks} weekStart={weekStart} weekStartsOn={weekStartsOn} onOpenBlock={(block, date) => setSelected({ block, date })} />
+          )}
         </>
       )}
 

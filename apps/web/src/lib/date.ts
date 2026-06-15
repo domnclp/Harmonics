@@ -1,9 +1,7 @@
 export type WeekStartsOn = "monday" | "sunday";
 
-export const dayLabels = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-export const dayShortLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-export const sundayFirstDayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-export const sundayFirstDayShortLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const dayLabels = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const sundayFirstDayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export const getDayOptions = (weekStartsOn: WeekStartsOn = "monday") => {
   const labels = weekStartsOn === "sunday" ? sundayFirstDayLabels : dayLabels;
@@ -40,7 +38,7 @@ export const formatTime = (time: string, use24Hour = false) => {
   return `${displayHour}:${minute.toString().padStart(2, "0")} ${period}`;
 };
 
-export const getMonday = (date = new Date()) => {
+const getMonday = (date = new Date()) => {
   const day = date.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   const monday = new Date(date);

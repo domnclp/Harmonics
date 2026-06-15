@@ -15,7 +15,7 @@ const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
 const authCache = new Map<string, { user: AuthUser; expiresAt: number }>();
 const authCacheTtlMs = 2 * 60 * 1000;
 
-export type AuthUser = {
+type AuthUser = {
   id: string;
   email: string;
   name: string | null;

@@ -122,6 +122,7 @@ model BlockInstance {
 
   @@unique([scheduleBlockId, date])
   @@index([userId, date])
+  @@index([userId, templateId])
 }
 
 model HabitCompletion {

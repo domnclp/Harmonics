@@ -67,21 +67,33 @@ export const completionService = {
     });
     if (!instance) throw new AppError(404, "Block instance not found");
 
-    const completionPercentage = input.completed ? 100 : 0;
+    if (input.completed) {
+      if (input.journalContent !== undefined) {
+        await prisma.journalEntry.update({
+          where: { instanceId },
+          data: { content: input.journalContent }
+        });
+      }
+
+      const completionPercentage = await updateInstanceCompletion(instanceId);
+      return { instanceId, completionPercentage };
+    }
+
+    const completionPercentage = 0;
     await prisma.$transaction(async (tx) => {
       await Promise.all([
         tx.habitCompletion.updateMany({
           where: { instanceId },
           data: {
-            completed: input.completed,
-            failureReason: input.completed ? null : input.failureReason ?? null
+            completed: false,
+            failureReason: input.failureReason ?? null
           }
         }),
         tx.taskCompletion.updateMany({
           where: { instanceId },
           data: {
-            completed: input.completed,
-            failureReason: input.completed ? null : input.failureReason ?? null
+            completed: false,
+            failureReason: input.failureReason ?? null
           }
         }),
         tx.blockInstance.update({

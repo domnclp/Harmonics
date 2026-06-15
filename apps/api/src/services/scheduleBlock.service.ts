@@ -12,7 +12,12 @@ export type ScheduleBlockInput = {
 };
 
 const includeBlock = {
-  template: true,
+  template: {
+    include: {
+      habits: { orderBy: { sortOrder: "asc" as const } },
+      tasks: { orderBy: { sortOrder: "asc" as const } }
+    }
+  },
   schedule: true
 };
 

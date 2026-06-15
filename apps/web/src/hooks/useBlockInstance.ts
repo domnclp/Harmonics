@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { apiFetch } from "../lib/api";
 import type { BlockInstance, Completion } from "../types";
 
@@ -35,6 +36,23 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
     enabled: Boolean(scheduleBlockId && date),
     queryFn: () => apiFetch<BlockInstance>(`/api/block-instances/${scheduleBlockId}?date=${date}`)
   });
+
+  useEffect(() => {
+    if (!date || !instance.data) return;
+
+    const loadedInstance = instance.data;
+
+    queryClient.setQueryData<BlockInstance[]>(["dashboard-instances", date], (current) => {
+      if (!current) return [loadedInstance];
+
+      const exists = current.some((item) => item.id === loadedInstance.id);
+      if (exists) {
+        return current.map((item) => (item.id === loadedInstance.id ? loadedInstance : item));
+      }
+
+      return [...current, loadedInstance].sort((left, right) => left.startTime.localeCompare(right.startTime));
+    });
+  }, [date, instance.data, queryClient]);
 
   const updateCachedCompletion = (
     id: string,
@@ -163,14 +181,22 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
       queryClient.setQueryData<BlockInstance>(queryKey, (current) => {
         if (!current) return current;
 
+        if (completed) {
+          return {
+            ...current,
+            completionPercentage: getCompletionPercentage(current),
+            journalEntry: journalContent === undefined ? current.journalEntry : { ...current.journalEntry, content: journalContent }
+          };
+        }
+
         const patch = {
-          completed,
-          failureReason: completed ? null : failureReason ?? null
+          completed: false,
+          failureReason: failureReason ?? null
         };
 
         return {
           ...current,
-          completionPercentage: completed ? 100 : 0,
+          completionPercentage: 0,
           journalEntry: journalContent === undefined ? current.journalEntry : { ...current.journalEntry, content: journalContent },
           habitCompletions: current.habitCompletions.map((item) => ({ ...item, ...patch })),
           taskCompletions: current.taskCompletions.map((item) => ({ ...item, ...patch }))
@@ -180,14 +206,22 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
         current?.map((item) => {
           if (item.scheduleBlockId !== scheduleBlockId) return item;
 
+          if (completed) {
+            return {
+              ...item,
+              completionPercentage: getCompletionPercentage(item),
+              journalEntry: journalContent === undefined ? item.journalEntry : { ...item.journalEntry, content: journalContent }
+            };
+          }
+
           const patch = {
-            completed,
-            failureReason: completed ? null : failureReason ?? null
+            completed: false,
+            failureReason: failureReason ?? null
           };
 
           return {
             ...item,
-            completionPercentage: completed ? 100 : 0,
+            completionPercentage: 0,
             journalEntry: journalContent === undefined ? item.journalEntry : { ...item.journalEntry, content: journalContent },
             habitCompletions: item.habitCompletions.map((completion) => ({ ...completion, ...patch })),
             taskCompletions: item.taskCompletions.map((completion) => ({ ...completion, ...patch }))
