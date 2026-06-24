@@ -13,6 +13,10 @@ const instanceCompletionSchema = z.object({
   journalContent: z.string().max(10000).optional()
 });
 
+const taskCreateSchema = z.object({
+  title: z.string().trim().min(1).max(120)
+});
+
 export const completionController = {
   async updateHabit(req: Request, res: Response) {
     const body = completionSchema.parse(req.body);
@@ -22,6 +26,15 @@ export const completionController = {
   async updateTask(req: Request, res: Response) {
     const body = completionSchema.parse(req.body);
     res.json(await completionService.updateTask(req.authUser!.id, req.params.id as string, body));
+  },
+
+  async createTask(req: Request, res: Response) {
+    const body = taskCreateSchema.parse(req.body);
+    res.status(201).json(await completionService.createTask(req.authUser!.id, req.params.instanceId as string, body));
+  },
+
+  async deleteTask(req: Request, res: Response) {
+    res.json(await completionService.deleteTask(req.authUser!.id, req.params.id as string));
   },
 
   async updateInstance(req: Request, res: Response) {

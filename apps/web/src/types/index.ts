@@ -40,6 +40,7 @@ export type Completion = {
   title: string;
   completed: boolean;
   failureReason?: string | null;
+  streak?: number;
 };
 
 type JournalEntry = {

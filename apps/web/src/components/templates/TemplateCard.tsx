@@ -41,20 +41,10 @@ export function TemplateCard({
       </CardHeader>
       <CardContent>
         {template.description && <p className="mb-4 text-sm text-muted-foreground">{template.description}</p>}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <div className="mb-2 text-sm font-medium">Habits</div>
-            <ul className="space-y-1 text-sm text-muted-foreground">
-              {template.habits.length ? template.habits.map((habit) => <li key={habit.id}>{habit.title}</li>) : <li>No habits yet</li>}
-            </ul>
-          </div>
-          <div>
-            <div className="mb-2 text-sm font-medium">Tasks</div>
-            <ul className="space-y-1 text-sm text-muted-foreground">
-              {template.tasks.length ? template.tasks.map((task) => <li key={task.id}>{task.title}</li>) : <li>No tasks yet</li>}
-            </ul>
-          </div>
-        </div>
+        <div className="mb-2 text-sm font-medium">Habits</div>
+        <ul className="space-y-1 text-sm text-muted-foreground">
+          {template.habits.length ? template.habits.map((habit) => <li key={habit.id}>{habit.title}</li>) : <li>No habits yet</li>}
+        </ul>
       </CardContent>
     </Card>
   );

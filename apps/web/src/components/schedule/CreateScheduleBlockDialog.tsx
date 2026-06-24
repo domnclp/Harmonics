@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarPlus, Plus, Trash2 } from "lucide-react";
+import { CalendarPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -47,7 +47,6 @@ export function CreateScheduleBlockDialog({
   const [selectedDays, setSelectedDays] = useState<number[]>([defaultDay]);
   const [temporaryDate, setTemporaryDate] = useState(toDateKey(defaultDate));
   const [temporaryName, setTemporaryName] = useState("");
-  const [temporaryTasks, setTemporaryTasks] = useState<string[]>([""]);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -93,30 +92,13 @@ export function CreateScheduleBlockDialog({
     setSelectedDays([defaultDay]);
     setTemporaryDate(toDateKey(defaultDate));
     setTemporaryName("");
-    setTemporaryTasks([""]);
-  };
-
-  const addTemporaryTask = () => {
-    setTemporaryTasks((tasks) => [...tasks, ""]);
-  };
-
-  const updateTemporaryTask = (index: number, value: string) => {
-    setTemporaryTasks((tasks) => tasks.map((task, taskIndex) => (taskIndex === index ? value : task)));
-  };
-
-  const removeTemporaryTask = (index: number) => {
-    setTemporaryTasks((tasks) => {
-      const nextTasks = tasks.filter((_, taskIndex) => taskIndex !== index);
-      return nextTasks.length > 0 ? nextTasks : [""];
-    });
   };
 
   const submit = async (values: FormValues) => {
-    const cleanTemporaryTasks = temporaryTasks.map((task) => task.trim()).filter(Boolean);
     const usesSelectedDays = values.recurrenceRule === "WEEKLY" || values.recurrenceRule === "CUSTOM";
 
     if (mode === "template" && (!values.templateId || (usesSelectedDays && selectedDays.length === 0))) return;
-    if (mode === "temporary" && (!temporaryName.trim() || cleanTemporaryTasks.length === 0)) return;
+    if (mode === "temporary" && !temporaryName.trim()) return;
 
     let scheduleId = schedules[0]?.id;
     if (!scheduleId) {
@@ -136,7 +118,7 @@ export function CreateScheduleBlockDialog({
               journalPrompt: null,
               isTemporary: true,
               habits: [],
-              tasks: cleanTemporaryTasks.map((title, sortOrder) => ({ title, sortOrder }))
+              tasks: []
             })
           ).id
         : values.templateId!;
@@ -195,7 +177,7 @@ export function CreateScheduleBlockDialog({
           <ModeButton
             active={mode === "temporary"}
             title="Create temporary block"
-            description="A one-time event with tasks only."
+            description="A one-time block. Add tasks after opening it."
             onClick={() => {
               setMode("temporary");
               form.setValue("recurrenceRule", "ONCE");
@@ -222,32 +204,7 @@ export function CreateScheduleBlockDialog({
               <Label htmlFor="temporaryDate">Date</Label>
               <Input id="temporaryDate" type="date" value={temporaryDate} onChange={(event) => setTemporaryDate(event.target.value)} />
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label>Tasks</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addTemporaryTask}>
-                  <Plus className="h-4 w-4" />
-                  Add task
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {temporaryTasks.map((task, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      aria-label={`Temporary task ${index + 1}`}
-                      value={task}
-                      onChange={(event) => updateTemporaryTask(index, event.target.value)}
-                      placeholder={index === 0 ? "Bring documents" : "Add another task"}
-                    />
-                    <Button type="button" variant="ghost" size="icon" onClick={() => removeTemporaryTask(index)} aria-label="Remove task">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              {temporaryTasks.every((task) => !task.trim()) && <p className="text-sm text-destructive">Add at least one task.</p>}
-              <p className="text-xs text-muted-foreground">Temporary blocks use tasks only, so there are no habits to set up.</p>
-            </div>
+            <p className="text-xs text-muted-foreground">Tasks are added after you click this block in the schedule or dashboard.</p>
           </div>
         )}
 
@@ -313,7 +270,7 @@ export function CreateScheduleBlockDialog({
             (mode === "template" &&
               (!form.watch("templateId") ||
                 (showsDayPicker && selectedDays.length === 0))) ||
-            (mode === "temporary" && (!temporaryName.trim() || temporaryTasks.every((task) => !task.trim())))
+            (mode === "temporary" && !temporaryName.trim())
           }
         >
           <CalendarPlus className="h-4 w-4" />

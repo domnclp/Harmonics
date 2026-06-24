@@ -17,7 +17,8 @@ export function TemplatesPage() {
     const payload = {
       ...values,
       description: values.description || null,
-      journalPrompt: values.journalPrompt || null
+      journalPrompt: values.journalPrompt || null,
+      tasks: []
     };
     if (editing) {
       updateTemplate.mutate({ id: editing.id, payload }, { onSuccess: () => closeDialog() });
@@ -36,7 +37,7 @@ export function TemplatesPage() {
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-2xl font-semibold">Reusable block templates</h2>
-          <p className="text-sm text-muted-foreground">Templates define the habits, tasks, notes, and journal prompt copied into daily instances.</p>
+          <p className="text-sm text-muted-foreground">Templates define recurring habits, notes, and the journal prompt copied into daily instances.</p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4" />

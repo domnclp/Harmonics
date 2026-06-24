@@ -1,4 +1,4 @@
-import { Pencil, Save, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatTime, getDayOptions } from "../../lib/date";
 import { recurrenceOptions } from "../../lib/recurrence";
@@ -27,7 +27,7 @@ export function BlockDetailModal({
   onClose: () => void;
   onDelete: (id: string) => void;
 }) {
-  const { data: instance, isLoading, updateHabit, updateTask, updateJournal, updateInstanceCompletion } = useBlockInstance(block?.id, date);
+  const { data: instance, isLoading, updateHabit, updateTask, createTask, deleteTask, updateJournal, updateInstanceCompletion } = useBlockInstance(block?.id, date);
   const { data: templates = [] } = useTemplates();
   const { updateBlock } = useScheduleBlocks();
   const weekStartsOn = useWeekStartsOn();
@@ -36,6 +36,7 @@ export function BlockDetailModal({
   const [editing, setEditing] = useState(false);
   const [incompleteDialogOpen, setIncompleteDialogOpen] = useState(false);
   const [incompleteReason, setIncompleteReason] = useState("");
+  const [newTaskTitle, setNewTaskTitle] = useState("");
   const [editValues, setEditValues] = useState({
     templateId: "",
     dayOfWeek: 0,
@@ -83,6 +84,7 @@ export function BlockDetailModal({
   const completionItems = instance ? [...instance.habitCompletions, ...instance.taskCompletions] : [];
   const showsDayPicker = editValues.recurrenceRule === "WEEKLY" || editValues.recurrenceRule === "CUSTOM";
   const completionUpdatePending = updateHabit.isPending || updateTask.isPending || updateJournal.isPending || updateInstanceCompletion.isPending;
+  const taskChangePending = createTask.isPending || deleteTask.isPending;
 
   const saveProgress = async () => {
     if (!instance) return;
@@ -103,6 +105,16 @@ export function BlockDetailModal({
     });
     setIncompleteDialogOpen(false);
     setIncompleteReason("");
+  };
+
+  const addTask = async () => {
+    if (!instance) return;
+
+    const title = newTaskTitle.trim();
+    if (!title) return;
+
+    await createTask.mutateAsync({ instanceId: instance.id, title });
+    setNewTaskTitle("");
   };
 
   return (
@@ -226,12 +238,18 @@ export function BlockDetailModal({
                 title="Habits"
                 items={instance.habitCompletions}
                 onToggle={(item, completed) => updateHabit.mutate({ id: item.id, completed, failureReason: completed ? null : item.failureReason })}
+                showStreak
               />
             )}
             <Checklist
               title="Tasks"
               items={instance.taskCompletions}
               onToggle={(item, completed) => updateTask.mutate({ id: item.id, completed, failureReason: completed ? null : item.failureReason })}
+              addTaskTitle={newTaskTitle}
+              onAddTaskTitleChange={setNewTaskTitle}
+              onAddTask={() => void addTask()}
+              onRemove={(item) => deleteTask.mutate(item.id)}
+              taskChangePending={taskChangePending}
             />
           </div>
 
@@ -299,28 +317,77 @@ export function BlockDetailModal({
 function Checklist({
   title,
   items,
-  onToggle
+  onToggle,
+  showStreak = false,
+  addTaskTitle,
+  onAddTaskTitleChange,
+  onAddTask,
+  onRemove,
+  taskChangePending = false
 }: {
   title: string;
   items: Completion[];
   onToggle: (item: Completion, completed: boolean) => void;
+  showStreak?: boolean;
+  addTaskTitle?: string;
+  onAddTaskTitleChange?: (value: string) => void;
+  onAddTask?: () => void;
+  onRemove?: (item: Completion) => void;
+  taskChangePending?: boolean;
 }) {
+  const canAddTask = Boolean(onAddTask && onAddTaskTitleChange);
+
   return (
     <section className="rounded-lg border p-4">
       <h3 className="mb-3 font-semibold">{title}</h3>
+      {canAddTask && (
+        <form
+          className="mb-3 flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onAddTask!();
+          }}
+        >
+          <Input
+            value={addTaskTitle ?? ""}
+            onChange={(event) => onAddTaskTitleChange!(event.target.value)}
+            placeholder="Add one-time task"
+            aria-label="New task"
+          />
+          <Button type="submit" variant="outline" size="icon" disabled={taskChangePending || !addTaskTitle?.trim()} aria-label="Add task">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </form>
+      )}
       <div className="space-y-3">
-        {items.length === 0 && <p className="text-sm text-muted-foreground">No {title.toLowerCase()} in this template.</p>}
+        {items.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            {canAddTask ? "No one-time tasks added to this block yet." : `No ${title.toLowerCase()} in this template.`}
+          </p>
+        )}
         {items.map((item) => (
           <div key={item.id} className="space-y-2 rounded-md bg-muted p-3">
-            <label className="flex items-center gap-3 text-sm font-medium">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-primary"
-                checked={item.completed}
-                onChange={(event) => onToggle(item, event.target.checked)}
-              />
-              <span className={item.completed ? "text-muted-foreground line-through" : ""}>{item.title}</span>
-            </label>
+            <div className="flex items-center justify-between gap-3">
+              <label className="flex min-w-0 flex-1 items-center gap-3 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 accent-primary"
+                  checked={item.completed}
+                  onChange={(event) => onToggle(item, event.target.checked)}
+                />
+                <span className={item.completed ? "min-w-0 truncate text-muted-foreground line-through" : "min-w-0 truncate"}>{item.title}</span>
+              </label>
+              {showStreak && (
+                <span className="shrink-0 rounded-md border bg-card px-2 py-1 text-xs font-semibold text-primary" title="Current streak">
+                  Streak: {item.streak ?? 0} {(item.streak ?? 0) === 1 ? "day" : "days"}
+                </span>
+              )}
+              {onRemove && (
+                <Button type="button" variant="ghost" size="icon" onClick={() => onRemove(item)} disabled={taskChangePending} aria-label={`Remove ${item.title}`}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
         ))}
       </div>

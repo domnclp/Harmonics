@@ -21,8 +21,7 @@ const templateFormSchema = z.object({
   icon: z.string().min(1),
   category: z.string().min(1),
   journalPrompt: z.string().optional(),
-  habits: z.array(itemSchema),
-  tasks: z.array(itemSchema)
+  habits: z.array(itemSchema)
 });
 
 export type TemplateFormValues = z.infer<typeof templateFormSchema>;
@@ -45,13 +44,11 @@ export function TemplateForm({
       icon: initial?.icon ?? "Sunrise",
       category: initial?.category ?? "",
       journalPrompt: initial?.journalPrompt ?? "",
-      habits: initial?.habits.map((habit, index) => ({ title: habit.title, sortOrder: index })) ?? [{ title: "", sortOrder: 0 }],
-      tasks: initial?.tasks.map((task, index) => ({ title: task.title, sortOrder: index })) ?? []
+      habits: initial?.habits.map((habit, index) => ({ title: habit.title, sortOrder: index })) ?? [{ title: "", sortOrder: 0 }]
     }
   });
 
   const habits = useFieldArray({ control: form.control, name: "habits" });
-  const tasks = useFieldArray({ control: form.control, name: "tasks" });
 
   return (
     <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
@@ -108,10 +105,7 @@ export function TemplateForm({
         <Textarea id="description" placeholder="What this block is for." {...form.register("description")} />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <ItemEditor title="Habits" fields={habits.fields} register={form.register} append={() => habits.append({ title: "", sortOrder: habits.fields.length })} remove={habits.remove} name="habits" />
-        <ItemEditor title="Tasks" fields={tasks.fields} register={form.register} append={() => tasks.append({ title: "", sortOrder: tasks.fields.length })} remove={tasks.remove} name="tasks" />
-      </div>
+      <ItemEditor title="Habits" fields={habits.fields} register={form.register} append={() => habits.append({ title: "", sortOrder: habits.fields.length })} remove={habits.remove} />
 
       <div className="space-y-2">
         <Label htmlFor="journalPrompt">Default journal prompt</Label>
@@ -131,15 +125,13 @@ function ItemEditor({
   fields,
   register,
   append,
-  remove,
-  name
+  remove
 }: {
   title: string;
   fields: { id: string }[];
   register: ReturnType<typeof useForm<TemplateFormValues>>["register"];
   append: () => void;
   remove: (index: number) => void;
-  name: "habits" | "tasks";
 }) {
   return (
     <div className="rounded-lg border p-4">
@@ -153,8 +145,8 @@ function ItemEditor({
       <div className="space-y-2">
         {fields.map((field, index) => (
           <div key={field.id} className="flex gap-2">
-            <Input placeholder={`${title.slice(0, -1)} title`} {...register(`${name}.${index}.title`)} />
-            <input type="hidden" {...register(`${name}.${index}.sortOrder`, { valueAsNumber: true })} value={index} readOnly />
+            <Input placeholder={`${title.slice(0, -1)} title`} {...register(`habits.${index}.title`)} />
+            <input type="hidden" {...register(`habits.${index}.sortOrder`, { valueAsNumber: true })} value={index} readOnly />
             <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} aria-label={`Remove ${title.slice(0, -1).toLowerCase()}`}>
               <Trash2 className="h-4 w-4" />
             </Button>

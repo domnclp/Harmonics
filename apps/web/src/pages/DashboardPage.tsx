@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus, TrendingUp } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -22,8 +22,8 @@ type SelectedBlock = { block: ScheduleBlock; date: string };
 const rowHeight = 52;
 const blockInset = 6;
 const getTemplateHabits = (block: ScheduleBlock) => block.template.habits ?? [];
-const getTemplateTasks = (block: ScheduleBlock) => block.template.tasks ?? [];
-const getChecklistTotal = (block: ScheduleBlock) => getTemplateHabits(block).length + getTemplateTasks(block).length;
+const getChecklistTotal = (block: ScheduleBlock, instance?: BlockInstance) =>
+  getTemplateHabits(block).length + (instance?.taskCompletions.length ?? 0);
 
 const getSavedCompletion = (instance?: BlockInstance) => {
   if (!instance) return 0;
@@ -132,7 +132,7 @@ export function DashboardPage() {
       dayBlocks.map((block) => {
         const instance = instancesByBlockId.get(block.id);
         const completionPercentage = getSavedCompletion(instance);
-        const checklistTotal = getChecklistTotal(block);
+        const checklistTotal = getChecklistTotal(block, instance);
         const isComplete = checklistTotal > 0 && completionPercentage === 100;
 
         return {
@@ -149,11 +149,10 @@ export function DashboardPage() {
 
   const { completion, completedHabits, totalHabits, completedTasks, totalTasks } = useMemo(() => {
     const habitsByBlock = new Map((instances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.habitCompletions] as const));
-    const tasksByBlock = new Map((instances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.taskCompletions] as const));
 
     const totalBlockProgress = dashboardBlocks.reduce((sum, item) => sum + item.completionPercentage, 0);
     const habits = dayBlocks.flatMap((block) => habitsByBlock.get(block.id) ?? getTemplateHabits(block).map(() => ({ completed: false })));
-    const tasks = dayBlocks.flatMap((block) => tasksByBlock.get(block.id) ?? getTemplateTasks(block).map(() => ({ completed: false })));
+    const tasks = (instances.data ?? []).flatMap((instance) => instance.taskCompletions);
 
     return {
       completion: dashboardBlocks.length ? Math.round(totalBlockProgress / dashboardBlocks.length) : 0,
@@ -176,7 +175,6 @@ export function DashboardPage() {
     ...overdueBlocks,
     ...(primaryBlock && !overdueBlocks.some((item) => item.block.id === primaryBlock.block.id) ? [primaryBlock] : [])
   ];
-  const weeklyAverage = instances.data?.length ? completion : 0;
   const progressBars = [
     {
       label: "Blocks",
@@ -455,46 +453,6 @@ export function DashboardPage() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Journal prompt</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  {primaryBlock?.block.template.journalPrompt?.trim() || "What worked well today, and what should change tomorrow?"}
-                </p>
-                <button
-                  type="button"
-                  className="inline-flex h-9 items-center justify-center rounded-md border bg-card px-3 text-sm font-medium transition hover:border-primary hover:bg-muted disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-                  onClick={() => primaryBlock && setSelected({ block: primaryBlock.block, date: dateKey })}
-                  disabled={!primaryBlock}
-                >
-                  Write journal
-                </button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Weekly insight</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-md bg-muted">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <div className="text-2xl font-semibold">{weeklyAverage}%</div>
-                    <div className="text-sm text-muted-foreground">Completion snapshot</div>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {completion >= 80 ? "Strong rhythm today. Keep the remaining blocks simple and focused." : "A lighter next step can keep the day moving."}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </div>
 

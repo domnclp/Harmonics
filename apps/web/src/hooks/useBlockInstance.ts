@@ -13,6 +13,14 @@ type CompletionResponse = Completion & {
   instanceCompletionPercentage?: number;
 };
 
+type TaskCreateResponse = CompletionResponse;
+
+type TaskDeleteResponse = {
+  id: string;
+  instanceId: string;
+  completionPercentage: number;
+};
+
 type InstanceCompletionUpdate = {
   id: string;
   completed: boolean;
@@ -57,7 +65,7 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
   const updateCachedCompletion = (
     id: string,
     type: "habit" | "task",
-    patch: { completed?: boolean; failureReason?: string | null },
+    patch: Partial<Completion>,
     instanceCompletionPercentage?: number
   ) => {
     queryClient.setQueryData<BlockInstance>(queryKey, (current) => {
@@ -112,7 +120,7 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
       updateCachedCompletion(
         id,
         "habit",
-        { completed: updated.completed, failureReason: updated.failureReason },
+        { completed: updated.completed, failureReason: updated.failureReason, streak: updated.streak },
         updated.instanceCompletionPercentage
       );
     }
@@ -139,6 +147,60 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
         "task",
         { completed: updated.completed, failureReason: updated.failureReason },
         updated.instanceCompletionPercentage
+      );
+    }
+  });
+
+  const createTask = useMutation({
+    mutationFn: ({ instanceId, title }: { instanceId: string; title: string }) =>
+      apiFetch<TaskCreateResponse>(`/api/block-instances/${instanceId}/task-completions`, { method: "POST", body: { title } }),
+    onSuccess: (created) => {
+      queryClient.setQueryData<BlockInstance>(queryKey, (current) =>
+        current
+          ? {
+              ...current,
+              completionPercentage: created.instanceCompletionPercentage ?? getCompletionPercentage({ ...current, taskCompletions: [...current.taskCompletions, created] }),
+              taskCompletions: [...current.taskCompletions, created]
+            }
+          : current
+      );
+      queryClient.setQueryData<BlockInstance[]>(dashboardKey, (current) =>
+        current?.map((item) =>
+          item.scheduleBlockId === scheduleBlockId
+            ? {
+                ...item,
+                completionPercentage:
+                  created.instanceCompletionPercentage ?? getCompletionPercentage({ ...item, taskCompletions: [...item.taskCompletions, created] }),
+                taskCompletions: [...item.taskCompletions, created]
+              }
+            : item
+        )
+      );
+    }
+  });
+
+  const deleteTask = useMutation({
+    mutationFn: (id: string) => apiFetch<TaskDeleteResponse>(`/api/task-completions/${id}`, { method: "DELETE" }),
+    onSuccess: (result) => {
+      queryClient.setQueryData<BlockInstance>(queryKey, (current) =>
+        current
+          ? {
+              ...current,
+              completionPercentage: result.completionPercentage,
+              taskCompletions: current.taskCompletions.filter((item) => item.id !== result.id)
+            }
+          : current
+      );
+      queryClient.setQueryData<BlockInstance[]>(dashboardKey, (current) =>
+        current?.map((item) =>
+          item.id === result.instanceId
+            ? {
+                ...item,
+                completionPercentage: result.completionPercentage,
+                taskCompletions: item.taskCompletions.filter((completion) => completion.id !== result.id)
+              }
+            : item
+        )
       );
     }
   });
@@ -246,5 +308,5 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
     }
   });
 
-  return { ...instance, updateHabit, updateTask, updateJournal, updateInstanceCompletion };
+  return { ...instance, updateHabit, updateTask, createTask, deleteTask, updateJournal, updateInstanceCompletion };
 }
