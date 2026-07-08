@@ -14,6 +14,7 @@ import { journalRoutes } from "./routes/journal.routes.js";
 import { scheduleBlockRoutes } from "./routes/scheduleBlock.routes.js";
 import { scheduleRoutes } from "./routes/schedule.routes.js";
 import { templateRoutes } from "./routes/template.routes.js";
+import { userSettingsRoutes } from "./routes/userSettings.routes.js";
 
 export const app = express();
 
@@ -84,6 +85,7 @@ app.use("/api/block-instances", requireAuth, blockInstanceRoutes);
 app.use("/api", requireAuth, completionRoutes);
 app.use("/api/journal-entries", requireAuth, journalRoutes);
 app.use("/api/analytics", requireAuth, analyticsRoutes);
+app.use("/api/user-settings", requireAuth, userSettingsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

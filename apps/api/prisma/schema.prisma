@@ -18,6 +18,18 @@ model User {
   blockTemplates    BlockTemplate[]
   scheduleBlocks    ScheduleBlock[]
   blockInstances    BlockInstance[]
+  settings          UserSettings?
+}
+
+model UserSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  scheduleStart   String   @default("06:00")
+  scheduleEnd     String   @default("23:00")
+  weekStartsOn    String   @default("monday")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Schedule {

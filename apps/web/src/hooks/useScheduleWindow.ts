@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../lib/api";
 
-const startKey = "scheduleStart";
-const endKey = "scheduleEnd";
 const changeEvent = "scheduleWindowChange";
 
 export type ScheduleWindow = {
@@ -24,20 +23,51 @@ const normalizeWindow = (startTime: string | null, endTime: string | null): Sche
   return { startTime, endTime };
 };
 
-export const getStoredScheduleWindow = () => {
+export const getStoredScheduleWindow = (): ScheduleWindow => {
   if (typeof window === "undefined") return defaultWindow;
-  return normalizeWindow(localStorage.getItem(startKey), localStorage.getItem(endKey));
+  return normalizeWindow(localStorage.getItem("scheduleStart"), localStorage.getItem("scheduleEnd"));
 };
 
-export const saveScheduleWindow = (windowValue: ScheduleWindow) => {
-  const normalized = normalizeWindow(windowValue.startTime, windowValue.endTime);
-  localStorage.setItem(startKey, normalized.startTime);
-  localStorage.setItem(endKey, normalized.endTime);
+const storeScheduleWindow = (value: ScheduleWindow) => {
+  const normalized = normalizeWindow(value.startTime, value.endTime);
+  localStorage.setItem("scheduleStart", normalized.startTime);
+  localStorage.setItem("scheduleEnd", normalized.endTime);
   window.dispatchEvent(new Event(changeEvent));
 };
 
+type UserSettingsResponse = {
+  scheduleStart: string;
+  scheduleEnd: string;
+};
+
+export async function fetchScheduleWindowFromServer(): Promise<ScheduleWindow> {
+  try {
+    const data = await apiFetch<UserSettingsResponse>("/api/user-settings");
+    const window = normalizeWindow(data.scheduleStart, data.scheduleEnd);
+    storeScheduleWindow(window);
+    return window;
+  } catch {
+    return getStoredScheduleWindow();
+  }
+}
+
+export async function saveScheduleWindowToServer(value: ScheduleWindow): Promise<ScheduleWindow> {
+  const normalized = normalizeWindow(value.startTime, value.endTime);
+  const data = await apiFetch<UserSettingsResponse>("/api/user-settings", {
+    method: "PATCH",
+    body: { scheduleStart: normalized.startTime, scheduleEnd: normalized.endTime }
+  });
+  const window = normalizeWindow(data.scheduleStart, data.scheduleEnd);
+  storeScheduleWindow(window);
+  return window;
+}
+
 export function useScheduleWindow() {
   const [scheduleWindow, setScheduleWindow] = useState<ScheduleWindow>(getStoredScheduleWindow);
+
+  useEffect(() => {
+    fetchScheduleWindowFromServer().then(setScheduleWindow);
+  }, []);
 
   useEffect(() => {
     const sync = () => setScheduleWindow(getStoredScheduleWindow());

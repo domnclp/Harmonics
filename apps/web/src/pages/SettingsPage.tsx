@@ -5,8 +5,8 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
 import { useAuth } from "../hooks/useAuth";
-import { getStoredScheduleWindow, saveScheduleWindow } from "../hooks/useScheduleWindow";
-import { getStoredWeekStartsOn, saveWeekStartsOn } from "../hooks/useWeekStartsOn";
+import { getStoredScheduleWindow, saveScheduleWindowToServer } from "../hooks/useScheduleWindow";
+import { getStoredWeekStartsOn, saveWeekStartsOnToServer } from "../hooks/useWeekStartsOn";
 import { type WeekStartsOn } from "../lib/date";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -38,6 +38,8 @@ export function SettingsPage() {
   const [scheduleStart, setScheduleStart] = useState(() => getStoredScheduleWindow().startTime);
   const [scheduleEnd, setScheduleEnd] = useState(() => getStoredScheduleWindow().endTime);
   const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(getStoredWeekStartsOn);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [weekSaving, setWeekSaving] = useState(false);
   const scheduleWindowChanged = scheduleStart !== savedScheduleWindow.startTime || scheduleEnd !== savedScheduleWindow.endTime;
   const scheduleWindowValid = Boolean(scheduleStart && scheduleEnd);
   const profileChanged = profileName.trim() !== name || profileUsername.trim() !== username;
@@ -58,15 +60,23 @@ export function SettingsPage() {
 
   useEffect(() => {
     localStorage.setItem("timeFormat", timeFormat);
-    saveWeekStartsOn(weekStartsOn);
-  }, [timeFormat, weekStartsOn]);
+  }, [timeFormat]);
 
-  const saveDefaultScheduleWindow = () => {
+  useEffect(() => {
+    setWeekSaving(true);
+    saveWeekStartsOnToServer(weekStartsOn).finally(() => setWeekSaving(false));
+  }, [weekStartsOn]);
+
+  const saveDefaultScheduleWindow = async () => {
     if (!scheduleWindowValid) return;
 
-    const nextWindow = { startTime: scheduleStart, endTime: scheduleEnd };
-    saveScheduleWindow(nextWindow);
-    setSavedScheduleWindow(nextWindow);
+    setScheduleSaving(true);
+    try {
+      const nextWindow = await saveScheduleWindowToServer({ startTime: scheduleStart, endTime: scheduleEnd });
+      setSavedScheduleWindow(nextWindow);
+    } finally {
+      setScheduleSaving(false);
+    }
   };
 
   const undoDefaultScheduleWindow = () => {
@@ -168,11 +178,12 @@ export function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="weekStartsOn">Week starts on</Label>
-              <Select id="weekStartsOn" value={weekStartsOn} onChange={(event) => setWeekStartsOn(event.target.value as WeekStartsOn)}>
+              <Select id="weekStartsOn" value={weekStartsOn} onChange={(event) => setWeekStartsOn(event.target.value as WeekStartsOn)} disabled={weekSaving}>
                 <option value="monday">Monday</option>
                 <option value="sunday">Sunday</option>
               </Select>
             </div>
+            {weekSaving && <p className="text-xs text-muted-foreground">Saving...</p>}
           </CardContent>
         </Card>
 
@@ -194,10 +205,10 @@ export function SettingsPage() {
             <p className="text-sm text-muted-foreground">End times earlier than the start are treated as the next day.</p>
             {scheduleWindowChanged && (
               <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" onClick={saveDefaultScheduleWindow} disabled={!scheduleWindowValid}>
-                  Save
+                <Button type="button" size="sm" onClick={() => void saveDefaultScheduleWindow()} disabled={!scheduleWindowValid || scheduleSaving}>
+                  {scheduleSaving ? "Saving..." : "Save"}
                 </Button>
-                <Button type="button" variant="outline" size="sm" onClick={undoDefaultScheduleWindow}>
+                <Button type="button" variant="outline" size="sm" onClick={undoDefaultScheduleWindow} disabled={scheduleSaving}>
                   Undo
                 </Button>
               </div>
