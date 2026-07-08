@@ -123,7 +123,7 @@ export const scheduleBlockService = {
       if (!template) throw new AppError(404, "Template not found");
     }
 
-    return prisma.scheduleBlock.update({
+    const updatedBlock = await prisma.scheduleBlock.update({
       where: { id },
       data: {
         ...input,
@@ -131,6 +131,19 @@ export const scheduleBlockService = {
       },
       include: includeBlock
     });
+
+    if (input.startTime || input.endTime) {
+      const instanceUpdateData: Record<string, string> = {};
+      if (input.startTime) instanceUpdateData.startTime = input.startTime;
+      if (input.endTime) instanceUpdateData.endTime = input.endTime;
+
+      await prisma.blockInstance.updateMany({
+        where: { scheduleBlockId: id },
+        data: instanceUpdateData
+      });
+    }
+
+    return updatedBlock;
   },
 
   async remove(userId: string, id: string) {

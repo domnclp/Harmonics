@@ -17,7 +17,11 @@ import { templateRoutes } from "./routes/template.routes.js";
 
 export const app = express();
 
-const helmetMiddleware = (helmet.default as unknown as () => RequestHandler)();
+const helmetFn = helmet.default as unknown as (opts?: Record<string, unknown>) => RequestHandler;
+const helmetMiddleware = helmetFn({
+  crossOriginResourcePolicy: false,
+  crossOriginEmbedderPolicy: false
+});
 const normalizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, "");
 const allowedOrigins = env.CORS_ORIGIN.split(",").map(normalizeOrigin).filter(Boolean);
 const isAllowedOrigin = (origin: string) => {
@@ -83,3 +87,5 @@ app.use("/api/analytics", requireAuth, analyticsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
+
+export default app;
