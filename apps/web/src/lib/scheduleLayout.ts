@@ -1,5 +1,5 @@
 import type { ScheduleBlock } from "../types";
-import { toMinutes } from "./date";
+import { getLogicalEndMinutes, getLogicalMinutes } from "./date";
 
 export type PositionedBlock = {
   block: ScheduleBlock;
@@ -7,14 +7,23 @@ export type PositionedBlock = {
   columns: number;
 };
 
-const overlaps = (left: ScheduleBlock, right: ScheduleBlock) =>
-  toMinutes(left.startTime) < toMinutes(right.endTime) && toMinutes(right.startTime) < toMinutes(left.endTime);
+const getBlockRange = (block: ScheduleBlock, dayStart = 0) => {
+  const start = getLogicalMinutes(block.startTime, dayStart);
+  const end = getLogicalEndMinutes(block.startTime, block.endTime, dayStart);
+  return { start, end };
+};
 
-export const getPositionedBlocks = (blocks: ScheduleBlock[]): PositionedBlock[] => {
+const overlaps = (left: ScheduleBlock, right: ScheduleBlock, dayStart = 0) => {
+  const leftRange = getBlockRange(left, dayStart);
+  const rightRange = getBlockRange(right, dayStart);
+  return leftRange.start < rightRange.end && rightRange.start < leftRange.end;
+};
+
+export const getPositionedBlocks = (blocks: ScheduleBlock[], dayStart = 0): PositionedBlock[] => {
   const sorted = [...blocks].sort((a, b) => {
-    const start = toMinutes(a.startTime) - toMinutes(b.startTime);
+    const start = getLogicalMinutes(a.startTime, dayStart) - getLogicalMinutes(b.startTime, dayStart);
     if (start !== 0) return start;
-    return toMinutes(a.endTime) - toMinutes(b.endTime);
+    return getLogicalEndMinutes(a.startTime, a.endTime, dayStart) - getLogicalEndMinutes(b.startTime, b.endTime, dayStart);
   });
 
   const positioned: PositionedBlock[] = [];
@@ -30,7 +39,7 @@ export const getPositionedBlocks = (blocks: ScheduleBlock[]): PositionedBlock[] 
 
     for (const block of group) {
       for (let index = active.length - 1; index >= 0; index -= 1) {
-        if (!overlaps(active[index].block, block)) {
+        if (!overlaps(active[index].block, block, dayStart)) {
           active.splice(index, 1);
         }
       }
@@ -53,8 +62,7 @@ export const getPositionedBlocks = (blocks: ScheduleBlock[]): PositionedBlock[] 
   };
 
   for (const block of sorted) {
-    const start = toMinutes(block.startTime);
-    const end = toMinutes(block.endTime);
+    const { start, end } = getBlockRange(block, dayStart);
 
     if (group.length && start >= groupEnd) {
       flushGroup();

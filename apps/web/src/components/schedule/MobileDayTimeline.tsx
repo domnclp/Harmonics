@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { ScheduleBlock } from "../../types";
-import { addDays, formatTime, getDayOptions, toDateKey, type WeekStartsOn } from "../../lib/date";
+import { addDays, formatTime, getDayOptions, getLogicalMinutes, getScheduleDate, toDateKey, toMinutes, type WeekStartsOn } from "../../lib/date";
 import { blockOccursOnDate } from "../../lib/recurrence";
 import { cn } from "../../lib/utils";
+import { useScheduleWindow } from "../../hooks/useScheduleWindow";
 import { Tabs, TabButton } from "../ui/tabs";
 import { ScheduleBlockCard } from "./ScheduleBlockCard";
 
@@ -18,13 +19,15 @@ export function MobileDayTimeline({
   onOpenBlock: (block: ScheduleBlock, date: string) => void;
 }) {
   const [activeDay, setActiveDay] = useState(0);
+  const scheduleWindow = useScheduleWindow();
+  const dayStart = toMinutes(scheduleWindow.startTime);
   const date = toDateKey(addDays(weekStart, activeDay));
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(getScheduleDate(new Date(), scheduleWindow.startTime, scheduleWindow.endTime));
   const days = getDayOptions(weekStartsOn).map(({ label }, index) => {
     const dayDate = toDateKey(addDays(weekStart, index));
     const dayBlocks = blocks
       .filter((block) => blockOccursOnDate(block, dayDate))
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      .sort((a, b) => getLogicalMinutes(a.startTime, dayStart) - getLogicalMinutes(b.startTime, dayStart));
     return { label: label.slice(0, 3), date: dayDate, blocks: dayBlocks };
   });
   const dayBlocks = days[activeDay].blocks;

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { toMinutes } from "../lib/date";
 
 const startKey = "scheduleStart";
 const endKey = "scheduleEnd";
@@ -18,7 +17,7 @@ const defaultWindow: ScheduleWindow = {
 const isValidTime = (value: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 
 const normalizeWindow = (startTime: string | null, endTime: string | null): ScheduleWindow => {
-  if (!startTime || !endTime || !isValidTime(startTime) || !isValidTime(endTime) || toMinutes(endTime) <= toMinutes(startTime)) {
+  if (!startTime || !endTime || !isValidTime(startTime) || !isValidTime(endTime)) {
     return defaultWindow;
   }
 

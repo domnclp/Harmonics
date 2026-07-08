@@ -1,5 +1,6 @@
 export type WeekStartsOn = "monday" | "sunday";
 
+export const minutesPerDay = 24 * 60;
 const dayLabels = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const sundayFirstDayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -12,8 +13,9 @@ export const getDayOptions = (weekStartsOn: WeekStartsOn = "monday") => {
 };
 
 const toTimeString = (totalMinutes: number) => {
-  const hour = Math.floor(totalMinutes / 60);
-  const minute = totalMinutes % 60;
+  const normalizedMinutes = ((totalMinutes % minutesPerDay) + minutesPerDay) % minutesPerDay;
+  const hour = Math.floor(normalizedMinutes / 60);
+  const minute = normalizedMinutes % 60;
   return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
 };
 
@@ -22,9 +24,38 @@ export const toMinutes = (time: string) => {
   return hour * 60 + minute;
 };
 
-export const getTimeSlots = (startTime = "06:00", endTime = "23:00"): string[] => {
+export const getLogicalMinutes = (time: string, dayStart = 0) => {
+  const minutes = toMinutes(time);
+  return minutes < dayStart ? minutes + minutesPerDay : minutes;
+};
+
+export const getLogicalEndMinutes = (startTime: string, endTime: string, dayStart = toMinutes(startTime)) => {
+  const start = getLogicalMinutes(startTime, dayStart);
+  const end = getLogicalMinutes(endTime, dayStart);
+  return end <= start ? end + minutesPerDay : end;
+};
+
+export const getDurationMinutes = (startTime: string, endTime: string) => {
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
+  return end <= start ? end + minutesPerDay - start : end - start;
+};
+
+export const getScheduleDate = (date: Date, startTime: string, endTime: string) => {
+  const start = toMinutes(startTime);
+  const end = toMinutes(endTime);
+  const clockMinutes = date.getHours() * 60 + date.getMinutes();
+
+  if (end > start || clockMinutes > end) return date;
+
+  const previous = new Date(date);
+  previous.setDate(date.getDate() - 1);
+  return previous;
+};
+
+export const getTimeSlots = (startTime = "06:00", endTime = "23:00"): string[] => {
+  const start = toMinutes(startTime);
+  const end = getLogicalEndMinutes(startTime, endTime, start);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return getTimeSlots();
 
   return Array.from({ length: Math.floor((end - start) / 30) + 1 }, (_, index) => toTimeString(start + index * 30));

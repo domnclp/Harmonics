@@ -8,14 +8,24 @@ import { BlockDetailModal } from "../components/schedule/BlockDetailModal";
 import { Progress } from "../components/ui/progress";
 import { apiFetch } from "../lib/api";
 import { getSubtleColorFill, withAlpha } from "../lib/color";
-import { addDays, formatTime, getTimeSlots, toDateKey, toMinutes } from "../lib/date";
+import {
+  addDays,
+  formatTime,
+  getDurationMinutes,
+  getLogicalEndMinutes,
+  getLogicalMinutes,
+  getScheduleDate,
+  getTimeSlots,
+  toDateKey,
+  toMinutes
+} from "../lib/date";
 import { blockOccursOnDate } from "../lib/recurrence";
 import { getColumnStyle, getPositionedBlocks } from "../lib/scheduleLayout";
 import { cn } from "../lib/utils";
 import { useScheduleBlocks } from "../hooks/useScheduleBlocks";
 import { useScheduleWindow } from "../hooks/useScheduleWindow";
 import type { BlockInstance, ScheduleBlock } from "../types";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type SelectedBlock = { block: ScheduleBlock; date: string };
 
@@ -35,8 +45,8 @@ const getSavedCompletion = (instance?: BlockInstance) => {
   return Math.round((completed / items.length) * 100);
 };
 
-const getDateLabel = (date: Date) => {
-  const today = toDateKey(new Date());
+const getDateLabel = (date: Date, todayDate = new Date()) => {
+  const today = toDateKey(todayDate);
   const key = toDateKey(date);
   if (key === today) return "today";
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(date).toLowerCase();
@@ -45,7 +55,7 @@ const getDateLabel = (date: Date) => {
 const getFullDateLabel = (date: Date) => new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(date);
 const isSameDate = (left: Date, right: Date) => toDateKey(left) === toDateKey(right);
 const getBlockDuration = (block: ScheduleBlock) => {
-  const minutes = Math.max(0, toMinutes(block.endTime) - toMinutes(block.startTime));
+  const minutes = getDurationMinutes(block.startTime, block.endTime);
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
 
@@ -54,11 +64,28 @@ const getBlockDuration = (block: ScheduleBlock) => {
   return `${hours} hr ${remainder} min`;
 };
 
-const getTimeUntilLabel = (block: ScheduleBlock, activeDate: Date, now: Date) => {
-  if (!isSameDate(activeDate, now)) return `Starts ${formatTime(block.startTime).toLowerCase()}`;
+const isActiveScheduleDate = (activeDate: Date, now: Date, timelineStart: number, timelineEnd: number) => {
+  if (isSameDate(activeDate, now)) return true;
+  if (timelineEnd <= 24 * 60) return false;
 
-  const minutesUntil = toMinutes(block.startTime) - (now.getHours() * 60 + now.getMinutes());
-  if (minutesUntil <= 0) return "In progress";
+  const nextDate = addDays(activeDate, 1);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  return isSameDate(nextDate, now) && nowMinutes <= timelineEnd - 24 * 60;
+};
+
+const getNowLogicalMinutes = (activeDate: Date, now: Date, timelineEnd: number) => {
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  return !isSameDate(activeDate, now) && timelineEnd > 24 * 60 ? nowMinutes + 24 * 60 : nowMinutes;
+};
+
+const getTimeUntilLabel = (block: ScheduleBlock, dayStart: number, nowLogicalMinutes: number, showsNow: boolean) => {
+  if (!showsNow) return `Starts ${formatTime(block.startTime).toLowerCase()}`;
+
+  const start = getLogicalMinutes(block.startTime, dayStart);
+  const end = getLogicalEndMinutes(block.startTime, block.endTime, dayStart);
+  const minutesUntil = start - nowLogicalMinutes;
+  if (minutesUntil <= 0 && end >= nowLogicalMinutes) return "In progress";
+  if (minutesUntil <= 0) return "Overdue";
 
   const hours = Math.floor(minutesUntil / 60);
   const minutes = minutesUntil % 60;
@@ -68,8 +95,8 @@ const getTimeUntilLabel = (block: ScheduleBlock, activeDate: Date, now: Date) =>
 };
 
 const getBlockStyle = (block: ScheduleBlock, column: number, columns: number, timelineStart: number, timelineEnd: number) => {
-  const start = Math.max(toMinutes(block.startTime), timelineStart);
-  const end = Math.min(toMinutes(block.endTime), timelineEnd);
+  const start = Math.max(getLogicalMinutes(block.startTime, timelineStart), timelineStart);
+  const end = Math.min(getLogicalEndMinutes(block.startTime, block.endTime, timelineStart), timelineEnd);
   if (end <= start) return null;
 
   const top = ((start - timelineStart) / 30) * rowHeight + blockInset;
@@ -87,12 +114,17 @@ const getBlockStyle = (block: ScheduleBlock, column: number, columns: number, ti
 export function DashboardPage() {
   const [activeDate, setActiveDate] = useState(new Date());
   const [now, setNow] = useState(() => new Date());
+  const syncedInitialScheduleDate = useRef(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const dateKey = toDateKey(activeDate);
   const [selected, setSelected] = useState<SelectedBlock | null>(null);
   const scheduleWindow = useScheduleWindow();
   const timelineStart = toMinutes(scheduleWindow.startTime);
-  const timelineEnd = toMinutes(scheduleWindow.endTime);
+  const timelineEnd = getLogicalEndMinutes(scheduleWindow.startTime, scheduleWindow.endTime, timelineStart);
+  const scheduleToday = useMemo(
+    () => getScheduleDate(now, scheduleWindow.startTime, scheduleWindow.endTime),
+    [now, scheduleWindow.endTime, scheduleWindow.startTime]
+  );
   const timelineSlots = useMemo(
     () => getTimeSlots(scheduleWindow.startTime, scheduleWindow.endTime),
     [scheduleWindow.endTime, scheduleWindow.startTime]
@@ -105,22 +137,29 @@ export function DashboardPage() {
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (syncedInitialScheduleDate.current) return;
+
+    setActiveDate(scheduleToday);
+    syncedInitialScheduleDate.current = true;
+  }, [scheduleToday]);
+
   const dayBlocks = useMemo(
     () =>
       blocks
         .filter((block) => blockOccursOnDate(block, dateKey))
-        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
-    [blocks, dateKey]
+        .sort((a, b) => getLogicalMinutes(a.startTime, timelineStart) - getLogicalMinutes(b.startTime, timelineStart)),
+    [blocks, dateKey, timelineStart]
   );
-  const positionedDayBlocks = useMemo(() => getPositionedBlocks(dayBlocks), [dayBlocks]);
+  const positionedDayBlocks = useMemo(() => getPositionedBlocks(dayBlocks, timelineStart), [dayBlocks, timelineStart]);
 
   const instances = useQuery({
     queryKey: ["dashboard-instances", dateKey],
     queryFn: () => apiFetch<BlockInstance[]>(`/api/block-instances?date=${dateKey}`)
   });
 
-  const showsNow = isSameDate(activeDate, now);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const showsNow = isActiveScheduleDate(activeDate, now, timelineStart, timelineEnd);
+  const nowMinutes = getNowLogicalMinutes(activeDate, now, timelineEnd);
 
   const instancesByBlockId = useMemo(() => {
     const entries = (instances.data ?? []).map((instance) => [instance.scheduleBlockId, instance] as const);
@@ -140,11 +179,11 @@ export function DashboardPage() {
           instance,
           completionPercentage,
           isComplete,
-          startMinutes: toMinutes(block.startTime),
-          endMinutes: toMinutes(block.endTime)
+          startMinutes: getLogicalMinutes(block.startTime, timelineStart),
+          endMinutes: getLogicalEndMinutes(block.startTime, block.endTime, timelineStart)
         };
       }),
-    [dayBlocks, instancesByBlockId]
+    [dayBlocks, instancesByBlockId, timelineStart]
   );
 
   const { completion, completedHabits, totalHabits, completedTasks, totalTasks } = useMemo(() => {
@@ -255,9 +294,9 @@ export function DashboardPage() {
                     <button
                       type="button"
                       className="h-8 min-w-24 rounded-sm px-3 text-sm font-semibold transition hover:bg-muted"
-                      onClick={() => setActiveDate(new Date())}
+                      onClick={() => setActiveDate(scheduleToday)}
                     >
-                      {getDateLabel(activeDate)}
+                      {getDateLabel(activeDate, scheduleToday)}
                     </button>
                     <button
                       type="button"
@@ -277,11 +316,11 @@ export function DashboardPage() {
 
           <div className="relative bg-background" style={{ height: timelineHeight }}>
             <div className="absolute left-0 top-0 w-full">
-              {timelineSlots.map((time) => {
+              {timelineSlots.map((time, index) => {
                 const isHour = time.endsWith(":00");
                 return (
                   <div
-                    key={time}
+                    key={`${time}-${index}`}
                     className={cn("grid border-t", isHour ? "border-border bg-card/35" : "border-border/60")}
                     style={{ gridTemplateColumns: "78px 1fr", height: rowHeight }}
                   >
@@ -367,7 +406,7 @@ export function DashboardPage() {
                     {attentionBlocks.map((item) => {
                       const block = item.block;
                       const isOverdue = overdueBlocks.some((overdue) => overdue.block.id === block.id);
-                      const statusLabel = isOverdue ? "Overdue" : getTimeUntilLabel(block, activeDate, now);
+                      const statusLabel = isOverdue ? "Overdue" : getTimeUntilLabel(block, timelineStart, nowMinutes, showsNow);
 
                       return (
                         <button

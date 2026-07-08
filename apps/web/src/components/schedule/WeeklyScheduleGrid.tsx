@@ -1,5 +1,16 @@
 import type { ScheduleBlock } from "../../types";
-import { addDays, formatTime, getDayOptions, getTimeSlots, toDateKey, toMinutes, type WeekStartsOn } from "../../lib/date";
+import {
+  addDays,
+  formatTime,
+  getDayOptions,
+  getLogicalEndMinutes,
+  getLogicalMinutes,
+  getScheduleDate,
+  getTimeSlots,
+  toDateKey,
+  toMinutes,
+  type WeekStartsOn
+} from "../../lib/date";
 import { blockOccursOnDate } from "../../lib/recurrence";
 import { getColumnStyle, getPositionedBlocks } from "../../lib/scheduleLayout";
 import { cn } from "../../lib/utils";
@@ -22,9 +33,9 @@ export function WeeklyScheduleGrid({
 }) {
   const scheduleWindow = useScheduleWindow();
   const startMinutes = toMinutes(scheduleWindow.startTime);
-  const endMinutes = toMinutes(scheduleWindow.endTime);
+  const endMinutes = getLogicalEndMinutes(scheduleWindow.startTime, scheduleWindow.endTime, startMinutes);
   const timeSlots = getTimeSlots(scheduleWindow.startTime, scheduleWindow.endTime);
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(getScheduleDate(new Date(), scheduleWindow.startTime, scheduleWindow.endTime));
   const weekDays = getDayOptions(weekStartsOn).map(({ label }, index) => {
     const date = toDateKey(addDays(weekStart, index));
     const dayBlocks = blocks.filter((block) => blockOccursOnDate(block, date));
@@ -53,11 +64,11 @@ export function WeeklyScheduleGrid({
 
       <div className="grid min-w-[1120px] calendar-grid">
         <div className="sticky left-0 z-10 border-r bg-card">
-          {timeSlots.map((slot) => {
+          {timeSlots.map((slot, index) => {
             const isHour = slot.endsWith(":00");
             return (
               <div
-                key={slot}
+                key={`${slot}-${index}`}
                 className={cn("h-11 border-b px-3 py-2 text-right text-xs", isHour ? "font-semibold text-foreground" : "text-muted-foreground")}
               >
                 {formatTime(slot).toLowerCase()}
@@ -66,7 +77,7 @@ export function WeeklyScheduleGrid({
           })}
         </div>
         {weekDays.map(({ day, date, blocks: dayBlocks }) => {
-          const positioned = getPositionedBlocks(dayBlocks);
+          const positioned = getPositionedBlocks(dayBlocks, startMinutes);
           return (
             <div
               key={day}
@@ -74,8 +85,8 @@ export function WeeklyScheduleGrid({
               style={{ height: timeSlots.length * slotHeight }}
             >
               <div className="absolute inset-0">
-                {timeSlots.map((slot) => (
-                  <div key={slot} className={cn("h-11 border-b", slot.endsWith(":00") ? "bg-card/35" : "")} />
+                {timeSlots.map((slot, index) => (
+                  <div key={`${slot}-${index}`} className={cn("h-11 border-b", slot.endsWith(":00") ? "bg-card/35" : "")} />
                 ))}
               </div>
               {dayBlocks.length === 0 && (
@@ -84,8 +95,8 @@ export function WeeklyScheduleGrid({
                 </div>
               )}
               {positioned.map(({ block, column, columns }) => {
-                const visibleStart = Math.max(toMinutes(block.startTime), startMinutes);
-                const visibleEnd = Math.min(toMinutes(block.endTime), endMinutes);
+                const visibleStart = Math.max(getLogicalMinutes(block.startTime, startMinutes), startMinutes);
+                const visibleEnd = Math.min(getLogicalEndMinutes(block.startTime, block.endTime, startMinutes), endMinutes);
                 if (visibleEnd <= visibleStart) return null;
 
                 const top = ((visibleStart - startMinutes) / 30) * slotHeight + blockInset;

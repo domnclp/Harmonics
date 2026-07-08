@@ -7,7 +7,7 @@ import { Select } from "../components/ui/select";
 import { useAuth } from "../hooks/useAuth";
 import { getStoredScheduleWindow, saveScheduleWindow } from "../hooks/useScheduleWindow";
 import { getStoredWeekStartsOn, saveWeekStartsOn } from "../hooks/useWeekStartsOn";
-import { toMinutes, type WeekStartsOn } from "../lib/date";
+import { type WeekStartsOn } from "../lib/date";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -39,7 +39,7 @@ export function SettingsPage() {
   const [scheduleEnd, setScheduleEnd] = useState(() => getStoredScheduleWindow().endTime);
   const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(getStoredWeekStartsOn);
   const scheduleWindowChanged = scheduleStart !== savedScheduleWindow.startTime || scheduleEnd !== savedScheduleWindow.endTime;
-  const scheduleWindowValid = toMinutes(scheduleEnd) > toMinutes(scheduleStart);
+  const scheduleWindowValid = Boolean(scheduleStart && scheduleEnd);
   const profileChanged = profileName.trim() !== name || profileUsername.trim() !== username;
   const profileValid = Boolean(profileName.trim()) && Boolean(profileUsername.trim());
 
@@ -191,7 +191,7 @@ export function SettingsPage() {
                 <Input id="scheduleEnd" type="time" step="1800" value={scheduleEnd} onChange={(event) => setScheduleEnd(event.target.value)} />
               </div>
             </div>
-            {!scheduleWindowValid && <p className="text-sm text-destructive">End time must be after start time.</p>}
+            <p className="text-sm text-muted-foreground">End times earlier than the start are treated as the next day.</p>
             {scheduleWindowChanged && (
               <div className="flex flex-wrap gap-2">
                 <Button type="button" size="sm" onClick={saveDefaultScheduleWindow} disabled={!scheduleWindowValid}>
