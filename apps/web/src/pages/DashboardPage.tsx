@@ -1,6 +1,6 @@
-import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { LoadError } from "../components/ui/load-error";
 import { CreateScheduleBlockDialog } from "../components/schedule/CreateScheduleBlockDialog";
@@ -24,7 +24,7 @@ import { getColumnStyle, getPositionedBlocks } from "../lib/scheduleLayout";
 import { cn } from "../lib/utils";
 import { useScheduleBlocks } from "../hooks/useScheduleBlocks";
 import { useScheduleWindow } from "../hooks/useScheduleWindow";
-import type { BlockInstance, ScheduleBlock } from "../types";
+import type { BlockInstance, Completion, ScheduleBlock } from "../types";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type SelectedBlock = { block: ScheduleBlock; date: string };
@@ -118,6 +118,7 @@ export function DashboardPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const dateKey = toDateKey(activeDate);
   const [selected, setSelected] = useState<SelectedBlock | null>(null);
+  const queryClient = useQueryClient();
   const scheduleWindow = useScheduleWindow();
   const timelineStart = toMinutes(scheduleWindow.startTime);
   const timelineEnd = getLogicalEndMinutes(scheduleWindow.startTime, scheduleWindow.endTime, timelineStart);
@@ -178,6 +179,7 @@ export function DashboardPage() {
           block,
           instance,
           completionPercentage,
+          checklistTotal,
           isComplete,
           startMinutes: getLogicalMinutes(block.startTime, timelineStart),
           endMinutes: getLogicalEndMinutes(block.startTime, block.endTime, timelineStart)
@@ -186,23 +188,77 @@ export function DashboardPage() {
     [dayBlocks, instancesByBlockId, timelineStart]
   );
 
+  // Only blocks with at least one habit or task count toward progress
+  const trackableBlocks = useMemo(() => dashboardBlocks.filter((item) => item.checklistTotal > 0), [dashboardBlocks]);
+
   const { completion, completedHabits, totalHabits, completedTasks, totalTasks } = useMemo(() => {
     const habitsByBlock = new Map((instances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.habitCompletions] as const));
 
-    const totalBlockProgress = dashboardBlocks.reduce((sum, item) => sum + item.completionPercentage, 0);
+    const totalBlockProgress = trackableBlocks.reduce((sum, item) => sum + item.completionPercentage, 0);
     const habits = dayBlocks.flatMap((block) => habitsByBlock.get(block.id) ?? getTemplateHabits(block).map(() => ({ completed: false })));
     const tasks = (instances.data ?? []).flatMap((instance) => instance.taskCompletions);
 
     return {
-      completion: dashboardBlocks.length ? Math.round(totalBlockProgress / dashboardBlocks.length) : 0,
+      completion: trackableBlocks.length ? Math.round(totalBlockProgress / trackableBlocks.length) : 0,
       completedHabits: habits.filter((item) => item.completed).length,
       totalHabits: habits.length,
       completedTasks: tasks.filter((item) => item.completed).length,
       totalTasks: tasks.length
     };
-  }, [dashboardBlocks, dayBlocks, instances.data]);
+  }, [trackableBlocks, dayBlocks, instances.data]);
 
-  const completedBlocks = dashboardBlocks.filter((item) => item.isComplete).length;
+  // Flat list of all tasks across today's blocks, with block reference for navigation
+  const remainingTasks = useMemo(() => {
+    const instanceList = instances.data ?? [];
+    return instanceList.flatMap((instance) =>
+      instance.taskCompletions.map((task) => ({
+        task,
+        instance,
+        block: instance.scheduleBlock
+      }))
+    );
+  }, [instances.data]);
+
+  const toggleTask = useMutation({
+    mutationFn: ({ id, completed }: { id: string; completed: boolean }) =>
+      apiFetch<Completion & { instanceCompletionPercentage?: number }>(`/api/task-completions/${id}`, {
+        method: "PATCH",
+        body: { completed }
+      }),
+    onMutate: async ({ id, completed }) => {
+      const dashKey = ["dashboard-instances", dateKey] as const;
+      await queryClient.cancelQueries({ queryKey: dashKey });
+      const previous = queryClient.getQueryData<BlockInstance[]>(dashKey);
+      queryClient.setQueryData<BlockInstance[]>(dashKey, (current) =>
+        current?.map((inst) => ({
+          ...inst,
+          taskCompletions: inst.taskCompletions.map((t) => (t.id === id ? { ...t, completed } : t))
+        }))
+      );
+      return { previous, dashKey };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.dashKey, ctx.previous);
+    },
+    onSuccess: (updated, { id }) => {
+      const dashKey = ["dashboard-instances", dateKey] as const;
+      queryClient.setQueryData<BlockInstance[]>(dashKey, (current) =>
+        current?.map((inst) => {
+          const hasTask = inst.taskCompletions.some((t) => t.id === id);
+          if (!hasTask) return inst;
+          const taskCompletions = inst.taskCompletions.map((t) =>
+            t.id === id ? { ...t, completed: updated.completed } : t
+          );
+          const allItems = [...inst.habitCompletions, ...taskCompletions];
+          const pct = updated.instanceCompletionPercentage ??
+            (allItems.length ? Math.round(allItems.filter((x) => x.completed).length / allItems.length * 100) : 0);
+          return { ...inst, taskCompletions, completionPercentage: pct };
+        })
+      );
+    }
+  });
+
+  const completedBlocks = trackableBlocks.filter((item) => item.isComplete).length;
   const remainingBlocks = dashboardBlocks.filter((item) => !item.isComplete);
   const overdueBlocks = showsNow ? remainingBlocks.filter((item) => item.endMinutes < nowMinutes) : [];
   const currentBlock = showsNow
@@ -218,8 +274,8 @@ export function DashboardPage() {
     {
       label: "Blocks",
       done: completedBlocks,
-      total: dayBlocks.length,
-      value: dayBlocks.length ? Math.round((completedBlocks / dayBlocks.length) * 100) : 0
+      total: trackableBlocks.length,
+      value: trackableBlocks.length ? Math.round((completedBlocks / trackableBlocks.length) * 100) : 0
     },
     {
       label: "Habits",
@@ -348,6 +404,11 @@ export function DashboardPage() {
                   const style = getBlockStyle(block, column, columns, timelineStart, timelineEnd);
                   if (!style) return null;
 
+                  const dashItem = dashboardBlocks.find((d) => d.block.id === block.id);
+                  const blockHeight = typeof style.height === 'number' ? style.height : 0;
+                  // 40px is the minimum block height (30-min block), so always show tags
+                  const showTags = blockHeight >= 40 && !!dashItem;
+
                   return (
                     <button
                       key={block.id}
@@ -356,9 +417,28 @@ export function DashboardPage() {
                       style={style}
                       onClick={() => setSelected({ block, date: dateKey })}
                     >
-                      <div className="whitespace-normal break-words text-sm font-semibold leading-tight">{block.template.name}</div>
-                      <div className="mt-0.5 truncate text-[11px] leading-tight text-cream-100">
-                        {formatTime(block.startTime).toLowerCase()} - {formatTime(block.endTime).toLowerCase()}
+                      <div className="flex h-full items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="whitespace-normal break-words text-sm font-semibold leading-tight">{block.template.name}</div>
+                          <div className="mt-0.5 truncate text-[11px] leading-tight text-cream-100">
+                            {formatTime(block.startTime).toLowerCase()} - {formatTime(block.endTime).toLowerCase()}
+                          </div>
+                        </div>
+                        {showTags && (
+                          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                            <span className="rounded bg-cream-100/20 px-1.5 py-0.5 text-[10px] font-semibold text-cream-100">
+                              {dashItem!.completionPercentage}%
+                            </span>
+                            <span className="rounded bg-cream-100/20 px-1.5 py-0.5 text-[10px] font-semibold text-cream-100">
+                              {getBlockDuration(block)}
+                            </span>
+                            {block.template.category && (
+                              <span className="rounded bg-cream-100/20 px-1.5 py-0.5 text-[10px] font-semibold text-cream-100">
+                                {block.template.category}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </button>
                   );
@@ -374,7 +454,7 @@ export function DashboardPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h3 className="text-2xl font-semibold leading-tight">Today progress</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{completedBlocks} blocks done, {remainingBlocks.length} left</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{completedBlocks} of {trackableBlocks.length} blocks done</p>
                 </div>
                 <div className="shrink-0 rounded-md border bg-background px-3 py-2 text-right">
                   <div className="text-2xl font-semibold leading-none">{completion}%</div>
@@ -397,54 +477,45 @@ export function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Blocks to tick</CardTitle>
+              <CardTitle>Current block</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {attentionBlocks.length ? (
+              {currentBlock ? (
                 <>
-                  <div className="space-y-3">
-                    {attentionBlocks.map((item) => {
-                      const block = item.block;
-                      const isOverdue = overdueBlocks.some((overdue) => overdue.block.id === block.id);
-                      const statusLabel = isOverdue ? "Overdue" : getTimeUntilLabel(block, timelineStart, nowMinutes, showsNow);
-
-                      return (
-                        <button
-                          key={block.id}
-                          type="button"
-                          className="w-full rounded-md border p-4 text-left text-cream-100 transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          style={{
-                            borderColor: withAlpha(block.template.color, 0.42),
-                            backgroundColor: getSubtleColorFill(block.template.color)
-                          }}
-                          onClick={() => setSelected({ block, date: dateKey })}
-                        >
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                              <div className="text-lg font-semibold">{block.template.name}</div>
-                              <div className="mt-1 text-sm text-cream-100">
-                                {formatTime(block.startTime)} - {formatTime(block.endTime)}
-                              </div>
-                            </div>
-                            <span className="inline-flex items-center gap-1 rounded-md bg-cream-100 px-2 py-1 text-xs font-semibold text-palette-roseDeep">
-                              <Clock3 className="h-3.5 w-3.5" />
-                              {statusLabel}
-                            </span>
-                          </div>
-                          <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                            <span className="rounded-md bg-cream-100 px-2 py-1 font-semibold text-palette-roseDeep">{item.completionPercentage}% done</span>
-                            <span className="rounded-md bg-cream-100 px-2 py-1 font-semibold text-palette-roseDeep">{getBlockDuration(block)}</span>
-                            <span className="rounded-md bg-cream-100 px-2 py-1 font-semibold text-palette-roseDeep">{block.template.category}</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <button
+                    type="button"
+                    className="w-full rounded-md border p-4 text-left text-cream-100 transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    style={{
+                      borderColor: withAlpha(currentBlock.block.template.color, 0.42),
+                      backgroundColor: getSubtleColorFill(currentBlock.block.template.color)
+                    }}
+                    onClick={() => setSelected({ block: currentBlock.block, date: dateKey })}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-lg font-semibold">{currentBlock.block.template.name}</div>
+                        <div className="mt-1 text-sm text-cream-100">
+                          {formatTime(currentBlock.block.startTime)} - {formatTime(currentBlock.block.endTime)}
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center gap-1 rounded-md bg-cream-100 px-2 py-1 text-xs font-semibold text-palette-roseDeep">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        In progress
+                      </span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-md bg-cream-100 px-2 py-1 font-semibold text-palette-roseDeep">{currentBlock.completionPercentage}% done</span>
+                      <span className="rounded-md bg-cream-100 px-2 py-1 font-semibold text-palette-roseDeep">{getBlockDuration(currentBlock.block)}</span>
+                      {currentBlock.block.template.category && (
+                        <span className="rounded-md bg-cream-100 px-2 py-1 font-semibold text-palette-roseDeep">{currentBlock.block.template.category}</span>
+                      )}
+                    </div>
+                  </button>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:bg-palette-roseDeep"
-                      onClick={() => primaryBlock && setSelected({ block: primaryBlock.block, date: dateKey })}
+                      onClick={() => setSelected({ block: currentBlock.block, date: dateKey })}
                     >
                       Open block
                       <ArrowRight className="h-4 w-4" />
@@ -452,42 +523,116 @@ export function DashboardPage() {
                     <button
                       type="button"
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-md border bg-card px-3 text-sm font-medium transition hover:border-primary hover:bg-muted"
-                      onClick={() => primaryBlock && setSelected({ block: primaryBlock.block, date: dateKey })}
+                      onClick={() => setSelected({ block: currentBlock.block, date: dateKey })}
+                    >
+                      Add note
+                    </button>
+                  </div>
+                </>
+              ) : upcomingBlock ? (
+                <>
+                  <button
+                    type="button"
+                    className="w-full rounded-md border p-4 text-left text-cream-100 transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    style={{
+                      borderColor: withAlpha(upcomingBlock.block.template.color, 0.42),
+                      backgroundColor: getSubtleColorFill(upcomingBlock.block.template.color)
+                    }}
+                    onClick={() => setSelected({ block: upcomingBlock.block, date: dateKey })}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-lg font-semibold">{upcomingBlock.block.template.name}</div>
+                        <div className="mt-1 text-sm text-cream-100">
+                          {formatTime(upcomingBlock.block.startTime)} - {formatTime(upcomingBlock.block.endTime)}
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center gap-1 rounded-md bg-cream-100 px-2 py-1 text-xs font-semibold text-palette-roseDeep">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        {getTimeUntilLabel(upcomingBlock.block, timelineStart, nowMinutes, showsNow)}
+                      </span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-md bg-cream-100 px-2 py-1 font-semibold text-palette-roseDeep">{upcomingBlock.completionPercentage}% done</span>
+                      <span className="rounded-md bg-cream-100 px-2 py-1 font-semibold text-palette-roseDeep">{getBlockDuration(upcomingBlock.block)}</span>
+                      {upcomingBlock.block.template.category && (
+                        <span className="rounded-md bg-cream-100 px-2 py-1 font-semibold text-palette-roseDeep">{upcomingBlock.block.template.category}</span>
+                      )}
+                    </div>
+                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:bg-palette-roseDeep"
+                      onClick={() => setSelected({ block: upcomingBlock.block, date: dateKey })}
+                    >
+                      Open block
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md border bg-card px-3 text-sm font-medium transition hover:border-primary hover:bg-muted"
+                      onClick={() => setSelected({ block: upcomingBlock.block, date: dateKey })}
                     >
                       Add note
                     </button>
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">All scheduled blocks are complete for this day.</p>
+                <p className="text-sm text-muted-foreground">No active or upcoming blocks right now.</p>
               )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle>Remaining today</CardTitle>
+              <CardTitle>Remaining tasks</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {remainingBlocks.length ? (
-                remainingBlocks.slice(0, 4).map((item) => (
-                  <button
-                    key={item.block.id}
-                    type="button"
-                    className="flex w-full items-center justify-between gap-3 rounded-md border bg-background p-3 text-left transition hover:border-primary hover:bg-muted"
-                    onClick={() => setSelected({ block: item.block, date: dateKey })}
+            <CardContent className="space-y-2">
+              {remainingTasks.length ? (
+                remainingTasks.map(({ task, instance, block }) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center gap-3 rounded-md border bg-background px-3 py-2.5 transition hover:border-primary/40"
                   >
-                    <div className="min-w-0">
-                      <div className="truncate font-semibold">{item.block.template.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatTime(item.block.startTime).toLowerCase()} - {formatTime(item.block.endTime).toLowerCase()}
+                    {/* Checkbox to toggle completion */}
+                    <button
+                      type="button"
+                      aria-label={task.completed ? "Mark task incomplete" : "Mark task complete"}
+                      className={cn(
+                        "grid h-5 w-5 shrink-0 place-items-center rounded border-2 transition",
+                        task.completed
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background hover:border-primary"
+                      )}
+                      onClick={() => toggleTask.mutate({ id: task.id, completed: !task.completed })}
+                    >
+                      {task.completed && <Check className="h-3 w-3" strokeWidth={3} />}
+                    </button>
+
+                    {/* Task title + block name */}
+                    <div className="min-w-0 flex-1">
+                      <div className={cn("truncate text-sm font-medium", task.completed && "text-muted-foreground line-through")}>
+                        {task.title}
+                      </div>
+                      <div className="truncate text-[11px] text-muted-foreground">
+                        {block?.template.name ?? instance.template.name} · {formatTime(instance.startTime).toLowerCase()}
                       </div>
                     </div>
-                    <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-semibold text-primary">{item.completionPercentage}%</span>
-                  </button>
+
+                    {/* Redirect to block */}
+                    <button
+                      type="button"
+                      aria-label="Open block"
+                      className="shrink-0 rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      onClick={() => block && setSelected({ block, date: dateKey })}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 ))
               ) : (
-                <p className="rounded-md border border-dashed bg-background p-4 text-sm text-muted-foreground">Nothing unfinished here.</p>
+                <p className="rounded-md border border-dashed bg-background p-4 text-sm text-muted-foreground">All tasks complete for today!</p>
               )}
             </CardContent>
           </Card>
