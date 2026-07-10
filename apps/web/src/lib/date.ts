@@ -58,7 +58,7 @@ export const getTimeSlots = (startTime = "06:00", endTime = "23:00"): string[] =
   const end = getLogicalEndMinutes(startTime, endTime, start);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return getTimeSlots();
 
-  return Array.from({ length: Math.floor((end - start) / 30) + 1 }, (_, index) => toTimeString(start + index * 30));
+  return Array.from({ length: Math.floor((end - start) / 30) }, (_, index) => toTimeString(start + index * 30));
 };
 
 export const formatTime = (time: string, use24Hour = false) => {
