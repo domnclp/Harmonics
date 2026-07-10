@@ -126,6 +126,7 @@ export function DashboardPage() {
     () => getScheduleDate(now, scheduleWindow.startTime, scheduleWindow.endTime),
     [now, scheduleWindow.endTime, scheduleWindow.startTime]
   );
+  const todayDateKey = useMemo(() => toDateKey(scheduleToday), [scheduleToday]);
   const timelineSlots = useMemo(
     () => getTimeSlots(scheduleWindow.startTime, scheduleWindow.endTime),
     [scheduleWindow.endTime, scheduleWindow.startTime]
@@ -152,11 +153,23 @@ export function DashboardPage() {
         .sort((a, b) => getLogicalMinutes(a.startTime, timelineStart) - getLogicalMinutes(b.startTime, timelineStart)),
     [blocks, dateKey, timelineStart]
   );
+  const todayBlocks = useMemo(
+    () =>
+      blocks
+        .filter((block) => blockOccursOnDate(block, todayDateKey))
+        .sort((a, b) => getLogicalMinutes(a.startTime, timelineStart) - getLogicalMinutes(b.startTime, timelineStart)),
+    [blocks, todayDateKey, timelineStart]
+  );
   const positionedDayBlocks = useMemo(() => getPositionedBlocks(dayBlocks, timelineStart), [dayBlocks, timelineStart]);
 
   const instances = useQuery({
     queryKey: ["dashboard-instances", dateKey],
     queryFn: () => apiFetch<BlockInstance[]>(`/api/block-instances?date=${dateKey}`)
+  });
+
+  const todayInstances = useQuery({
+    queryKey: ["dashboard-instances", todayDateKey],
+    queryFn: () => apiFetch<BlockInstance[]>(`/api/block-instances?date=${todayDateKey}`)
   });
 
   const showsNow = isActiveScheduleDate(activeDate, now, timelineStart, timelineEnd);
@@ -166,6 +179,11 @@ export function DashboardPage() {
     const entries = (instances.data ?? []).map((instance) => [instance.scheduleBlockId, instance] as const);
     return new Map(entries);
   }, [instances.data]);
+
+  const todayInstancesByBlockId = useMemo(() => {
+    const entries = (todayInstances.data ?? []).map((instance) => [instance.scheduleBlockId, instance] as const);
+    return new Map(entries);
+  }, [todayInstances.data]);
 
   const dashboardBlocks = useMemo(
     () =>
@@ -188,8 +206,28 @@ export function DashboardPage() {
     [dayBlocks, instancesByBlockId, timelineStart]
   );
 
+  const todayDashboardBlocks = useMemo(
+    () =>
+      todayBlocks.map((block) => {
+        const instance = todayInstancesByBlockId.get(block.id);
+        const completionPercentage = getSavedCompletion(instance);
+        const checklistTotal = getChecklistTotal(block, instance);
+        const isComplete = checklistTotal > 0 && completionPercentage === 100;
+
+        return {
+          block,
+          instance,
+          completionPercentage,
+          checklistTotal,
+          isComplete
+        };
+      }),
+    [todayBlocks, todayInstancesByBlockId]
+  );
+
   // Only blocks with at least one habit or task count toward progress
   const trackableBlocks = useMemo(() => dashboardBlocks.filter((item) => item.checklistTotal > 0), [dashboardBlocks]);
+  const todayTrackableBlocks = useMemo(() => todayDashboardBlocks.filter((item) => item.checklistTotal > 0), [todayDashboardBlocks]);
 
   const { completion, completedHabits, totalHabits, completedTasks, totalTasks } = useMemo(() => {
     const habitsByBlock = new Map((instances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.habitCompletions] as const));
@@ -207,6 +245,20 @@ export function DashboardPage() {
     };
   }, [trackableBlocks, dayBlocks, instances.data]);
 
+  const { todayCompletedHabits, todayTotalHabits, todayCompletedTasks, todayTotalTasks } = useMemo(() => {
+    const habitsByBlock = new Map((todayInstances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.habitCompletions] as const));
+    const totalBlockProgress = todayTrackableBlocks.reduce((sum, item) => sum + item.completionPercentage, 0);
+    const habits = todayBlocks.flatMap((block) => habitsByBlock.get(block.id) ?? getTemplateHabits(block).map(() => ({ completed: false })));
+    const tasks = (todayInstances.data ?? []).flatMap((instance) => instance.taskCompletions);
+
+    return {
+      todayCompletedHabits: habits.filter((item) => item.completed).length,
+      todayTotalHabits: habits.length,
+      todayCompletedTasks: tasks.filter((item) => item.completed).length,
+      todayTotalTasks: tasks.length
+    };
+  }, [todayTrackableBlocks, todayBlocks, todayInstances.data]);
+
   // Flat list of all tasks across today's blocks, with block reference for navigation
   const remainingTasks = useMemo(() => {
     const instanceList = instances.data ?? [];
@@ -219,6 +271,22 @@ export function DashboardPage() {
     );
   }, [instances.data]);
 
+  const updateInstancesCache = (id: string, completed: boolean, updated: Completion & { instanceCompletionPercentage?: number }, queryKey: readonly ["dashboard-instances", string]) => {
+    queryClient.setQueryData<BlockInstance[]>(queryKey, (current) =>
+      current?.map((inst) => {
+        const hasTask = inst.taskCompletions.some((t) => t.id === id);
+        if (!hasTask) return inst;
+        const taskCompletions = inst.taskCompletions.map((t) =>
+          t.id === id ? { ...t, completed } : t
+        );
+        const allItems = [...inst.habitCompletions, ...taskCompletions];
+        const pct = updated.instanceCompletionPercentage ??
+          (allItems.length ? Math.round(allItems.filter((x) => x.completed).length / allItems.length * 100) : 0);
+        return { ...inst, taskCompletions, completionPercentage: pct };
+      })
+    );
+  };
+
   const toggleTask = useMutation({
     mutationFn: ({ id, completed }: { id: string; completed: boolean }) =>
       apiFetch<Completion & { instanceCompletionPercentage?: number }>(`/api/task-completions/${id}`, {
@@ -226,6 +294,7 @@ export function DashboardPage() {
         body: { completed }
       }),
     onMutate: async ({ id, completed }) => {
+      const todayKey = ["dashboard-instances", todayDateKey] as const;
       const dashKey = ["dashboard-instances", dateKey] as const;
       await queryClient.cancelQueries({ queryKey: dashKey });
       const previous = queryClient.getQueryData<BlockInstance[]>(dashKey);
@@ -235,6 +304,9 @@ export function DashboardPage() {
           taskCompletions: inst.taskCompletions.map((t) => (t.id === id ? { ...t, completed } : t))
         }))
       );
+      if (todayKey[1] !== dateKey) {
+        await queryClient.cancelQueries({ queryKey: todayKey });
+      }
       return { previous, dashKey };
     },
     onError: (_err, _vars, ctx) => {
@@ -242,23 +314,18 @@ export function DashboardPage() {
     },
     onSuccess: (updated, { id }) => {
       const dashKey = ["dashboard-instances", dateKey] as const;
-      queryClient.setQueryData<BlockInstance[]>(dashKey, (current) =>
-        current?.map((inst) => {
-          const hasTask = inst.taskCompletions.some((t) => t.id === id);
-          if (!hasTask) return inst;
-          const taskCompletions = inst.taskCompletions.map((t) =>
-            t.id === id ? { ...t, completed: updated.completed } : t
-          );
-          const allItems = [...inst.habitCompletions, ...taskCompletions];
-          const pct = updated.instanceCompletionPercentage ??
-            (allItems.length ? Math.round(allItems.filter((x) => x.completed).length / allItems.length * 100) : 0);
-          return { ...inst, taskCompletions, completionPercentage: pct };
-        })
-      );
+      updateInstancesCache(id, updated.completed, updated, dashKey);
+      const todayKey = ["dashboard-instances", todayDateKey] as const;
+      if (todayKey[1] !== dateKey) {
+        queryClient.invalidateQueries({ queryKey: todayKey });
+      } else {
+        updateInstancesCache(id, updated.completed, updated, todayKey);
+      }
     }
   });
 
   const completedBlocks = trackableBlocks.filter((item) => item.isComplete).length;
+  const todayCompletedBlocks = todayTrackableBlocks.filter((item) => item.isComplete).length;
   const remainingBlocks = dashboardBlocks.filter((item) => !item.isComplete);
   const overdueBlocks = showsNow ? remainingBlocks.filter((item) => item.endMinutes < nowMinutes) : [];
   const currentBlock = showsNow
@@ -270,24 +337,28 @@ export function DashboardPage() {
     ...overdueBlocks,
     ...(primaryBlock && !overdueBlocks.some((item) => item.block.id === primaryBlock.block.id) ? [primaryBlock] : [])
   ];
+  const todayOverallCompletion = useMemo(
+    () => todayTrackableBlocks.length ? Math.round(todayTrackableBlocks.reduce((sum, item) => sum + item.completionPercentage, 0) / todayTrackableBlocks.length) : 0,
+    [todayTrackableBlocks]
+  );
   const progressBars = [
     {
       label: "Blocks",
-      done: completedBlocks,
-      total: trackableBlocks.length,
-      value: trackableBlocks.length ? Math.round((completedBlocks / trackableBlocks.length) * 100) : 0
+      done: todayCompletedBlocks,
+      total: todayTrackableBlocks.length,
+      value: todayTrackableBlocks.length ? Math.round((todayCompletedBlocks / todayTrackableBlocks.length) * 100) : 0
     },
     {
       label: "Habits",
-      done: completedHabits,
-      total: totalHabits,
-      value: totalHabits ? Math.round((completedHabits / totalHabits) * 100) : 0
+      done: todayCompletedHabits,
+      total: todayTotalHabits,
+      value: todayTotalHabits ? Math.round((todayCompletedHabits / todayTotalHabits) * 100) : 0
     },
     {
       label: "Tasks",
-      done: completedTasks,
-      total: totalTasks,
-      value: totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0
+      done: todayCompletedTasks,
+      total: todayTotalTasks,
+      value: todayTotalTasks ? Math.round((todayCompletedTasks / todayTotalTasks) * 100) : 0
     }
   ];
   const nowTop = ((Math.min(Math.max(nowMinutes, timelineStart), timelineEnd) - timelineStart) / 30) * rowHeight;
@@ -298,6 +369,7 @@ export function DashboardPage() {
     <div className="space-y-6">
       {blocksIsError && <LoadError label="schedule blocks" error={blocksError} />}
       {instances.isError && <LoadError label="dashboard instances" error={instances.error} />}
+      {todayInstances.isError && <LoadError label="today's instances" error={todayInstances.error} />}
 
       <div className="flex flex-col justify-between gap-4 text-left lg:flex-row lg:items-end">
         <div className="w-full max-w-2xl self-start text-left">
@@ -454,10 +526,10 @@ export function DashboardPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h3 className="text-2xl font-semibold leading-tight">Today progress</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{completedBlocks} of {trackableBlocks.length} blocks done</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{todayCompletedBlocks} of {todayTrackableBlocks.length} blocks done</p>
                 </div>
                 <div className="shrink-0 rounded-md border bg-background px-3 py-2 text-right">
-                  <div className="text-2xl font-semibold leading-none">{completion}%</div>
+                  <div className="text-2xl font-semibold leading-none">{todayOverallCompletion}%</div>
                   <div className="mt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">overall</div>
                 </div>
               </div>

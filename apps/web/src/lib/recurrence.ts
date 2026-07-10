@@ -41,7 +41,7 @@ const matchesMonthlyInterval = (block: ScheduleBlock, date: Date, intervalMonths
 export const blockOccursOnDate = (block: ScheduleBlock, dateKey: string) => {
   const date = new Date(`${dateKey}T00:00:00`);
   const day = dayOfWeekMondayFirst(date);
-  const rule = block.recurrenceRule as RecurrenceRule;
+  const rule = (block.recurrenceRule as RecurrenceRule)?.trim();
   const anchor = getAnchorDate(block);
 
   if (anchor && date < anchor) return false;
@@ -50,17 +50,17 @@ export const blockOccursOnDate = (block: ScheduleBlock, dateKey: string) => {
     case "ONCE":
       return block.date?.slice(0, 10) === dateKey;
     case "DAILY":
-      return true;
+      return day === block.dayOfWeek;
     case "WEEKDAYS":
-      return day >= 0 && day <= 4;
+      return day >= 0 && day <= 4 && day === block.dayOfWeek;
     case "MONTHLY":
-      return matchesMonthlyInterval(block, date, 1);
+      return matchesMonthlyInterval(block, date, 1) && day === block.dayOfWeek;
     case "QUARTERLY":
-      return matchesMonthlyInterval(block, date, 3);
+      return matchesMonthlyInterval(block, date, 3) && day === block.dayOfWeek;
     case "SEMI_ANNUALLY":
-      return matchesMonthlyInterval(block, date, 6);
+      return matchesMonthlyInterval(block, date, 6) && day === block.dayOfWeek;
     case "YEARLY":
-      return matchesMonthlyInterval(block, date, 12);
+      return matchesMonthlyInterval(block, date, 12) && day === block.dayOfWeek;
     case "WEEKLY":
     case "CUSTOM":
     default:
