@@ -50,9 +50,9 @@ export const blockOccursOnDate = (block: ScheduleBlock, dateKey: string) => {
     case "ONCE":
       return block.date?.slice(0, 10) === dateKey;
     case "DAILY":
-      return day === block.dayOfWeek;
+      return true;
     case "WEEKDAYS":
-      return day >= 0 && day <= 4 && day === block.dayOfWeek;
+      return day >= 0 && day <= 4;
     case "MONTHLY":
       return matchesMonthlyInterval(block, date, 1) && day === block.dayOfWeek;
     case "QUARTERLY":

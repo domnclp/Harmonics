@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"c:/Projects/Harmonics/.claude/skills/run\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Projects\\Harmonics\\.claude\\skills"
+    ]
+  }
+}
