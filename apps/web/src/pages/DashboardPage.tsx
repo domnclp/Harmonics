@@ -34,8 +34,8 @@ type SelectedBlock = { block: ScheduleBlock; date: string };
 const rowHeight = 52;
 const blockInset = 6;
 const getTemplateHabits = (block: ScheduleBlock) => block.template.habits ?? [];
-const getChecklistTotal = (block: ScheduleBlock, instance?: BlockInstance) =>
-  getTemplateHabits(block).length + (instance?.taskCompletions.length ?? 0);
+const getTemplateTasks = (block: ScheduleBlock) => block.template.tasks ?? [];
+const getChecklistTotal = (block: ScheduleBlock) => getTemplateHabits(block).length + getTemplateTasks(block).length;
 
 const getSavedCompletion = (instance?: BlockInstance) => {
   if (!instance) return 0;
@@ -205,7 +205,7 @@ export function DashboardPage() {
       dayBlocks.map((block) => {
         const instance = instancesByBlockId.get(block.id);
         const completionPercentage = getSavedCompletion(instance);
-        const checklistTotal = getChecklistTotal(block, instance);
+        const checklistTotal = getChecklistTotal(block);
         const isComplete = checklistTotal > 0 && completionPercentage === 100;
 
         return {
@@ -226,7 +226,7 @@ export function DashboardPage() {
       todayBlocks.map((block) => {
         const instance = todayInstancesByBlockId.get(block.id);
         const completionPercentage = getSavedCompletion(instance);
-        const checklistTotal = getChecklistTotal(block, instance);
+        const checklistTotal = getChecklistTotal(block);
         const isComplete = checklistTotal > 0 && completionPercentage === 100;
 
         return {
@@ -246,10 +246,11 @@ export function DashboardPage() {
 
   const { completion, completedHabits, totalHabits, completedTasks, totalTasks } = useMemo(() => {
     const habitsByBlock = new Map((instances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.habitCompletions] as const));
+    const tasksByBlock = new Map((instances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.taskCompletions] as const));
 
     const totalBlockProgress = trackableBlocks.reduce((sum, item) => sum + item.completionPercentage, 0);
     const habits = dayBlocks.flatMap((block) => habitsByBlock.get(block.id) ?? getTemplateHabits(block).map(() => ({ completed: false })));
-    const tasks = (instances.data ?? []).flatMap((instance) => instance.taskCompletions);
+    const tasks = dayBlocks.flatMap((block) => tasksByBlock.get(block.id) ?? getTemplateTasks(block).map(() => ({ completed: false })));
 
     return {
       completion: trackableBlocks.length ? Math.round(totalBlockProgress / trackableBlocks.length) : 0,
@@ -262,9 +263,9 @@ export function DashboardPage() {
 
   const { todayCompletedHabits, todayTotalHabits, todayCompletedTasks, todayTotalTasks } = useMemo(() => {
     const habitsByBlock = new Map((todayInstances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.habitCompletions] as const));
-    const totalBlockProgress = todayTrackableBlocks.reduce((sum, item) => sum + item.completionPercentage, 0);
+    const tasksByBlock = new Map((todayInstances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.taskCompletions] as const));
     const habits = todayBlocks.flatMap((block) => habitsByBlock.get(block.id) ?? getTemplateHabits(block).map(() => ({ completed: false })));
-    const tasks = (todayInstances.data ?? []).flatMap((instance) => instance.taskCompletions);
+    const tasks = todayBlocks.flatMap((block) => tasksByBlock.get(block.id) ?? getTemplateTasks(block).map(() => ({ completed: false })));
 
     return {
       todayCompletedHabits: habits.filter((item) => item.completed).length,
@@ -272,7 +273,7 @@ export function DashboardPage() {
       todayCompletedTasks: tasks.filter((item) => item.completed).length,
       todayTotalTasks: tasks.length
     };
-  }, [todayTrackableBlocks, todayBlocks, todayInstances.data]);
+  }, [todayBlocks, todayInstances.data]);
 
   // Flat list of all tasks across today's blocks, with block reference for navigation
   const remainingTasks = useMemo(() => {
