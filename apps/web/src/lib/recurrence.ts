@@ -38,12 +38,13 @@ const matchesMonthlyInterval = (block: ScheduleBlock, date: Date, intervalMonths
   return diff >= 0 && diff % intervalMonths === 0;
 };
 
-export const blockOccursOnDate = (block: ScheduleBlock, dateKey: string) => {
+export const blockOccursOnDate = (block: ScheduleBlock, dateKey: string, activeDays?: number[]) => {
   const date = new Date(`${dateKey}T00:00:00`);
   const day = dayOfWeekMondayFirst(date);
   const rule = (block.recurrenceRule as RecurrenceRule)?.trim();
   const anchor = getAnchorDate(block);
 
+  if (activeDays && !activeDays.includes(day)) return false;
   if (anchor && date < anchor) return false;
 
   switch (rule) {

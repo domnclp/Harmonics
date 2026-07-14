@@ -11,6 +11,7 @@ import { useSchedules } from "../../hooks/useSchedules";
 import { useTemplates } from "../../hooks/useTemplates";
 import { useScheduleWindow } from "../../hooks/useScheduleWindow";
 import { useWeekStartsOn } from "../../hooks/useWeekStartsOn";
+import { useActiveDays } from "../../hooks/useActiveDays";
 import { Button } from "../ui/button";
 import { Dialog } from "../ui/dialog";
 import { Input } from "../ui/input";
@@ -40,9 +41,11 @@ export function CreateScheduleBlockDialog({
   const { data: templates = [], createTemplate } = useTemplates();
   const scheduleWindow = useScheduleWindow();
   const weekStartsOn = useWeekStartsOn();
+  const activeDays = useActiveDays();
   const defaultDate = initialDate ?? new Date();
-  const defaultDay = defaultDate.getDay() === 0 ? 6 : defaultDate.getDay() - 1;
-  const dayOptions = getDayOptions(weekStartsOn);
+  const rawDefaultDay = defaultDate.getDay() === 0 ? 6 : defaultDate.getDay() - 1;
+  const defaultDay = activeDays.includes(rawDefaultDay) ? rawDefaultDay : (activeDays[0] ?? rawDefaultDay);
+  const dayOptions = getDayOptions(weekStartsOn, activeDays);
   const [mode, setMode] = useState<"template" | "temporary">("template");
   const [selectedDays, setSelectedDays] = useState<number[]>([defaultDay]);
   const [temporaryDate, setTemporaryDate] = useState(toDateKey(defaultDate));
@@ -78,9 +81,9 @@ export function CreateScheduleBlockDialog({
     form.setValue("recurrenceRule", rule);
 
     if (rule === "DAILY") {
-      setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
+      setSelectedDays(activeDays);
     } else if (rule === "WEEKDAYS") {
-      setSelectedDays([0, 1, 2, 3, 4]);
+      setSelectedDays(activeDays.filter((day) => day <= 4));
     } else if (selectedDays.length === 0) {
       setSelectedDays([defaultDay]);
     }

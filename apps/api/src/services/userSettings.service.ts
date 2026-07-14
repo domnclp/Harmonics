@@ -9,7 +9,7 @@ export const userSettingsService = {
     return settings;
   },
 
-  async upsert(userId: string, data: { scheduleStart?: string; scheduleEnd?: string; weekStartsOn?: string }) {
+  async upsert(userId: string, data: { scheduleStart?: string; scheduleEnd?: string; weekStartsOn?: string; activeDays?: string }) {
     return prisma.userSettings.upsert({
       where: { userId },
       update: data,

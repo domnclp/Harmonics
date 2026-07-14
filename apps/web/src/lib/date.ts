@@ -4,12 +4,14 @@ export const minutesPerDay = 24 * 60;
 const dayLabels = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const sundayFirstDayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-export const getDayOptions = (weekStartsOn: WeekStartsOn = "monday") => {
+export const getDayOptions = (weekStartsOn: WeekStartsOn = "monday", activeDays?: number[]) => {
   const labels = weekStartsOn === "sunday" ? sundayFirstDayLabels : dayLabels;
-  return labels.map((label) => ({
+  const options = labels.map((label) => ({
     label,
     dayOfWeek: label === "Sunday" ? 6 : dayLabels.indexOf(label)
   }));
+
+  return activeDays ? options.filter((option) => activeDays.includes(option.dayOfWeek)) : options;
 };
 
 const toTimeString = (totalMinutes: number) => {

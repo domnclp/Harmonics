@@ -7,7 +7,8 @@ import { Select } from "../components/ui/select";
 import { useAuth } from "../hooks/useAuth";
 import { getStoredScheduleWindow, saveScheduleWindowToServer } from "../hooks/useScheduleWindow";
 import { getStoredWeekStartsOn, saveWeekStartsOnToServer } from "../hooks/useWeekStartsOn";
-import { type WeekStartsOn } from "../lib/date";
+import { getStoredActiveDays, saveActiveDaysToServer } from "../hooks/useActiveDays";
+import { getDayOptions, type WeekStartsOn } from "../lib/date";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -38,8 +39,13 @@ export function SettingsPage() {
   const [scheduleStart, setScheduleStart] = useState(() => getStoredScheduleWindow().startTime);
   const [scheduleEnd, setScheduleEnd] = useState(() => getStoredScheduleWindow().endTime);
   const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(getStoredWeekStartsOn);
+  const [savedActiveDays, setSavedActiveDays] = useState(getStoredActiveDays);
+  const [activeDays, setActiveDays] = useState(getStoredActiveDays);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [weekSaving, setWeekSaving] = useState(false);
+  const [activeDaysSaving, setActiveDaysSaving] = useState(false);
+  const activeDaysChanged = JSON.stringify([...activeDays].sort()) !== JSON.stringify([...savedActiveDays].sort());
+  const activeDaysValid = activeDays.length > 0;
   const scheduleWindowChanged = scheduleStart !== savedScheduleWindow.startTime || scheduleEnd !== savedScheduleWindow.endTime;
   const scheduleWindowValid = Boolean(scheduleStart && scheduleEnd);
   const profileChanged = profileName.trim() !== name || profileUsername.trim() !== username;
@@ -82,6 +88,29 @@ export function SettingsPage() {
   const undoDefaultScheduleWindow = () => {
     setScheduleStart(savedScheduleWindow.startTime);
     setScheduleEnd(savedScheduleWindow.endTime);
+  };
+
+  const toggleActiveDay = (dayOfWeek: number) => {
+    setActiveDays((days) =>
+      days.includes(dayOfWeek) ? days.filter((day) => day !== dayOfWeek) : [...days, dayOfWeek].sort((a, b) => a - b)
+    );
+  };
+
+  const saveActiveDays = async () => {
+    if (!activeDaysValid) return;
+
+    setActiveDaysSaving(true);
+    try {
+      const saved = await saveActiveDaysToServer(activeDays);
+      setSavedActiveDays(saved);
+      setActiveDays(saved);
+    } finally {
+      setActiveDaysSaving(false);
+    }
+  };
+
+  const undoActiveDays = () => {
+    setActiveDays(savedActiveDays);
   };
 
   const saveProfile = async () => {
@@ -209,6 +238,42 @@ export function SettingsPage() {
                   {scheduleSaving ? "Saving..." : "Save"}
                 </Button>
                 <Button type="button" variant="outline" size="sm" onClick={undoDefaultScheduleWindow} disabled={scheduleSaving}>
+                  Undo
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Active days</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Choose which days are part of your schedule. Days you turn off are hidden from the weekly schedule and dashboard.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {getDayOptions(weekStartsOn).map(({ label, dayOfWeek }) => (
+                <label key={label} className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary"
+                    checked={activeDays.includes(dayOfWeek)}
+                    onChange={() => toggleActiveDay(dayOfWeek)}
+                    disabled={activeDaysSaving}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            {!activeDaysValid && <p className="text-sm text-destructive">Choose at least one day.</p>}
+            {activeDaysChanged && (
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={() => void saveActiveDays()} disabled={!activeDaysValid || activeDaysSaving}>
+                  {activeDaysSaving ? "Saving..." : "Save"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={undoActiveDays} disabled={activeDaysSaving}>
                   Undo
                 </Button>
               </div>

@@ -11,6 +11,7 @@ import { blockOccursOnDate } from "../lib/recurrence";
 import { useScheduleBlocks } from "../hooks/useScheduleBlocks";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useWeekStartsOn } from "../hooks/useWeekStartsOn";
+import { useActiveDays } from "../hooks/useActiveDays";
 import type { ScheduleBlock } from "../types";
 
 type SelectedBlock = {
@@ -22,6 +23,7 @@ const formatWeekDate = (date: Date) => new Intl.DateTimeFormat("en", { month: "l
 
 export function SchedulePage() {
   const weekStartsOn = useWeekStartsOn();
+  const activeDays = useActiveDays();
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date(), weekStartsOn));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selected, setSelected] = useState<SelectedBlock | null>(null);
@@ -35,8 +37,8 @@ export function SchedulePage() {
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => toDateKey(addDays(weekStart, index))), [weekStart]);
   const weekBlockCount = useMemo(
-    () => blocks.filter((block) => weekDates.some((date) => blockOccursOnDate(block, date))).length,
-    [blocks, weekDates]
+    () => blocks.filter((block) => weekDates.some((date) => blockOccursOnDate(block, date, activeDays))).length,
+    [blocks, weekDates, activeDays]
   );
 
   return (
@@ -81,9 +83,9 @@ export function SchedulePage() {
       ) : (
         <>
           {showsDesktopSchedule ? (
-            <WeeklyScheduleGrid blocks={blocks} weekStart={weekStart} weekStartsOn={weekStartsOn} onOpenBlock={(block, date) => setSelected({ block, date })} />
+            <WeeklyScheduleGrid blocks={blocks} weekStart={weekStart} weekStartsOn={weekStartsOn} activeDays={activeDays} onOpenBlock={(block, date) => setSelected({ block, date })} />
           ) : (
-            <MobileDayTimeline blocks={blocks} weekStart={weekStart} weekStartsOn={weekStartsOn} onOpenBlock={(block, date) => setSelected({ block, date })} />
+            <MobileDayTimeline blocks={blocks} weekStart={weekStart} weekStartsOn={weekStartsOn} activeDays={activeDays} onOpenBlock={(block, date) => setSelected({ block, date })} />
           )}
         </>
       )}

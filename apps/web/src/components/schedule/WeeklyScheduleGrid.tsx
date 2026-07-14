@@ -1,7 +1,7 @@
 import type { ScheduleBlock } from "../../types";
 import {
-  addDays,
   formatTime,
+  getDateForDayOfWeek,
   getDayOptions,
   getLogicalEndMinutes,
   getLogicalMinutes,
@@ -24,11 +24,13 @@ export function WeeklyScheduleGrid({
   blocks,
   weekStart,
   weekStartsOn,
+  activeDays,
   onOpenBlock
 }: {
   blocks: ScheduleBlock[];
   weekStart: Date;
   weekStartsOn: WeekStartsOn;
+  activeDays?: number[];
   onOpenBlock: (block: ScheduleBlock, date: string) => void;
 }) {
   const scheduleWindow = useScheduleWindow();
@@ -36,15 +38,17 @@ export function WeeklyScheduleGrid({
   const endMinutes = getLogicalEndMinutes(scheduleWindow.startTime, scheduleWindow.endTime, startMinutes);
   const timeSlots = getTimeSlots(scheduleWindow.startTime, scheduleWindow.endTime);
   const todayKey = toDateKey(getScheduleDate(new Date(), scheduleWindow.startTime, scheduleWindow.endTime));
-  const weekDays = getDayOptions(weekStartsOn).map(({ label }, index) => {
-    const date = toDateKey(addDays(weekStart, index));
-    const dayBlocks = blocks.filter((block) => blockOccursOnDate(block, date));
+  const weekDays = getDayOptions(weekStartsOn, activeDays).map(({ label, dayOfWeek }) => {
+    const date = toDateKey(getDateForDayOfWeek(weekStart, dayOfWeek, weekStartsOn));
+    const dayBlocks = blocks.filter((block) => blockOccursOnDate(block, date, activeDays));
     return { day: label, date, blocks: dayBlocks };
   });
+  const timeColumnWidth = 90;
+  const gridStyle = { gridTemplateColumns: `${timeColumnWidth}px repeat(${weekDays.length}, minmax(0, 1fr))` };
 
   return (
-    <div className="hidden overflow-x-auto rounded-lg border bg-card shadow-soft lg:block">
-      <div className="grid min-w-[1120px] calendar-grid sticky top-0 z-20 border-b bg-card">
+    <div className="hidden rounded-lg border bg-card shadow-soft lg:block">
+      <div className="grid sticky top-0 z-20 rounded-t-lg border-b bg-card" style={gridStyle}>
         <div className="border-r bg-muted/60 p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Time</div>
         {weekDays.map(({ day, date, blocks: dayBlocks }) => (
           <div
@@ -62,7 +66,7 @@ export function WeeklyScheduleGrid({
         ))}
       </div>
 
-      <div className="grid min-w-[1120px] calendar-grid">
+      <div className="grid" style={gridStyle}>
         <div className="sticky left-0 z-10 border-r bg-card">
           {timeSlots.map((slot, index) => {
             const isHour = slot.endsWith(":00");

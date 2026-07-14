@@ -10,6 +10,7 @@ import { apiFetch } from "../lib/api";
 import { getSubtleColorFill, withAlpha } from "../lib/color";
 import {
   addDays,
+  dayOfWeekMondayFirst,
   formatTime,
   getDurationMinutes,
   getLogicalEndMinutes,
@@ -24,6 +25,7 @@ import { getColumnStyle, getPositionedBlocks } from "../lib/scheduleLayout";
 import { cn } from "../lib/utils";
 import { useScheduleBlocks } from "../hooks/useScheduleBlocks";
 import { useScheduleWindow } from "../hooks/useScheduleWindow";
+import { useActiveDays } from "../hooks/useActiveDays";
 import type { BlockInstance, Completion, ScheduleBlock } from "../types";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -43,6 +45,18 @@ const getSavedCompletion = (instance?: BlockInstance) => {
 
   const completed = items.filter((item) => item.completed).length;
   return Math.round((completed / items.length) * 100);
+};
+
+const stepToActiveDay = (date: Date, direction: 1 | -1, activeDays: number[]) => {
+  if (!activeDays.length || activeDays.length === 7) return addDays(date, direction);
+
+  let next = addDays(date, direction);
+  for (let i = 0; i < 7; i += 1) {
+    if (activeDays.includes(dayOfWeekMondayFirst(next))) return next;
+    next = addDays(next, direction);
+  }
+
+  return next;
 };
 
 const getDateLabel = (date: Date, todayDate = new Date()) => {
@@ -120,6 +134,7 @@ export function DashboardPage() {
   const [selected, setSelected] = useState<SelectedBlock | null>(null);
   const queryClient = useQueryClient();
   const scheduleWindow = useScheduleWindow();
+  const activeDays = useActiveDays();
   const timelineStart = toMinutes(scheduleWindow.startTime);
   const timelineEnd = getLogicalEndMinutes(scheduleWindow.startTime, scheduleWindow.endTime, timelineStart);
   const scheduleToday = useMemo(
@@ -149,16 +164,16 @@ export function DashboardPage() {
   const dayBlocks = useMemo(
     () =>
       blocks
-        .filter((block) => blockOccursOnDate(block, dateKey))
+        .filter((block) => blockOccursOnDate(block, dateKey, activeDays))
         .sort((a, b) => getLogicalMinutes(a.startTime, timelineStart) - getLogicalMinutes(b.startTime, timelineStart)),
-    [blocks, dateKey, timelineStart]
+    [blocks, dateKey, timelineStart, activeDays]
   );
   const todayBlocks = useMemo(
     () =>
       blocks
-        .filter((block) => blockOccursOnDate(block, todayDateKey))
+        .filter((block) => blockOccursOnDate(block, todayDateKey, activeDays))
         .sort((a, b) => getLogicalMinutes(a.startTime, timelineStart) - getLogicalMinutes(b.startTime, timelineStart)),
-    [blocks, todayDateKey, timelineStart]
+    [blocks, todayDateKey, timelineStart, activeDays]
   );
   const positionedDayBlocks = useMemo(() => getPositionedBlocks(dayBlocks, timelineStart), [dayBlocks, timelineStart]);
 
@@ -415,7 +430,7 @@ export function DashboardPage() {
                       type="button"
                       className="grid h-8 w-8 place-items-center rounded-sm transition hover:bg-muted"
                       aria-label="Previous day"
-                      onClick={() => setActiveDate((date) => addDays(date, -1))}
+                      onClick={() => setActiveDate((date) => stepToActiveDay(date, -1, activeDays))}
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
@@ -430,7 +445,7 @@ export function DashboardPage() {
                       type="button"
                       className="grid h-8 w-8 place-items-center rounded-sm transition hover:bg-muted"
                       aria-label="Next day"
-                      onClick={() => setActiveDate((date) => addDays(date, 1))}
+                      onClick={() => setActiveDate((date) => stepToActiveDay(date, 1, activeDays))}
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
