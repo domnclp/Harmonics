@@ -50,6 +50,7 @@ export function CreateScheduleBlockDialog({
   const [selectedDays, setSelectedDays] = useState<number[]>([defaultDay]);
   const [temporaryDate, setTemporaryDate] = useState(toDateKey(defaultDate));
   const [temporaryName, setTemporaryName] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -68,6 +69,7 @@ export function CreateScheduleBlockDialog({
 
   useEffect(() => {
     if (!open) return;
+    setSubmitError("");
     setSelectedDays([defaultDay]);
   }, [defaultDay, open]);
 
@@ -95,6 +97,7 @@ export function CreateScheduleBlockDialog({
     setSelectedDays([defaultDay]);
     setTemporaryDate(toDateKey(defaultDate));
     setTemporaryName("");
+    setSubmitError("");
   };
 
   const submit = async (values: FormValues) => {
@@ -103,56 +106,62 @@ export function CreateScheduleBlockDialog({
     if (mode === "template" && (!values.templateId || (usesSelectedDays && selectedDays.length === 0))) return;
     if (mode === "temporary" && !temporaryName.trim()) return;
 
-    let scheduleId = schedules[0]?.id;
-    if (!scheduleId) {
-      const schedule = await createSchedule.mutateAsync("Main Schedule");
-      scheduleId = schedule.id;
+    setSubmitError("");
+
+    try {
+      let scheduleId = schedules[0]?.id;
+      if (!scheduleId) {
+        const schedule = await createSchedule.mutateAsync("Main Schedule");
+        scheduleId = schedule.id;
+      }
+
+      const templateId =
+        mode === "temporary"
+          ? (
+              await createTemplate.mutateAsync({
+                name: temporaryName.trim(),
+                description: "One-time block",
+                color: palette.gardenAfterRain,
+                icon: "CalendarDays",
+                category: "Temporary",
+                journalPrompt: null,
+                isTemporary: true,
+                habits: [],
+                tasks: []
+              })
+            ).id
+          : values.templateId!;
+
+      const recurrenceRule = mode === "temporary" ? "ONCE" : values.recurrenceRule;
+      const weekStart = getWeekStart(defaultDate, weekStartsOn);
+      const temporaryDateValue = new Date(`${temporaryDate}T00:00:00`);
+      const temporaryDay = temporaryDateValue.getDay() === 0 ? 6 : temporaryDateValue.getDay() - 1;
+      const daysToCreate =
+        mode === "temporary" || ["DAILY", "WEEKDAYS", "MONTHLY", "QUARTERLY", "SEMI_ANNUALLY", "YEARLY"].includes(recurrenceRule)
+          ? [mode === "temporary" ? temporaryDay : defaultDay]
+          : selectedDays;
+
+      await createBlocks.mutateAsync(
+        daysToCreate.map((dayOfWeek) => {
+          const anchorDate = mode === "temporary" ? temporaryDate : toDateKey(getDateForDayOfWeek(weekStart, dayOfWeek, weekStartsOn));
+
+          return {
+            scheduleId,
+            templateId,
+            dayOfWeek,
+            startTime: values.startTime,
+            endTime: values.endTime,
+            recurrenceRule,
+            date: anchorDate
+          };
+        })
+      );
+
+      resetDialog();
+      onClose();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message.replace(/^\d+:\s*/, "") : "Could not create this block.");
     }
-
-    const templateId =
-      mode === "temporary"
-        ? (
-            await createTemplate.mutateAsync({
-              name: temporaryName.trim(),
-              description: "One-time block",
-              color: palette.gardenAfterRain,
-              icon: "CalendarDays",
-              category: "Temporary",
-              journalPrompt: null,
-              isTemporary: true,
-              habits: [],
-              tasks: []
-            })
-          ).id
-        : values.templateId!;
-
-    const recurrenceRule = mode === "temporary" ? "ONCE" : values.recurrenceRule;
-    const weekStart = getWeekStart(defaultDate, weekStartsOn);
-    const temporaryDateValue = new Date(`${temporaryDate}T00:00:00`);
-    const temporaryDay = temporaryDateValue.getDay() === 0 ? 6 : temporaryDateValue.getDay() - 1;
-    const daysToCreate =
-      mode === "temporary" || ["DAILY", "WEEKDAYS", "MONTHLY", "QUARTERLY", "SEMI_ANNUALLY", "YEARLY"].includes(recurrenceRule)
-        ? [mode === "temporary" ? temporaryDay : defaultDay]
-        : selectedDays;
-
-    await createBlocks.mutateAsync(
-      daysToCreate.map((dayOfWeek) => {
-        const anchorDate = mode === "temporary" ? temporaryDate : toDateKey(getDateForDayOfWeek(weekStart, dayOfWeek, weekStartsOn));
-
-        return {
-          scheduleId,
-          templateId,
-          dayOfWeek,
-          startTime: values.startTime,
-          endTime: values.endTime,
-          recurrenceRule,
-          date: anchorDate
-        };
-      })
-    );
-
-    resetDialog();
-    onClose();
   };
 
   const watchedRecurrenceRule = form.watch("recurrenceRule");
@@ -263,6 +272,8 @@ export function CreateScheduleBlockDialog({
             <p className="text-sm text-muted-foreground">Temporary blocks happen once on {temporaryDate}.</p>
           </div>
         )}
+
+        {submitError && <p className="text-sm text-destructive">{submitError}</p>}
 
         <Button
           type="submit"

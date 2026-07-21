@@ -1,6 +1,22 @@
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Save, Trash2 } from "lucide-react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { GripVertical, Plus, Save, Trash2 } from "lucide-react";
+import { useFieldArray, useForm, type UseFormRegister } from "react-hook-form";
 import { z } from "zod";
 import type { BlockTemplate } from "../../types";
 import { palette, templateColors } from "../../lib/palette";
@@ -21,10 +37,14 @@ const templateFormSchema = z.object({
   icon: z.string().min(1),
   category: z.string().min(1),
   journalPrompt: z.string().optional(),
-  habits: z.array(itemSchema)
+  habits: z.array(itemSchema),
+  tasks: z.array(itemSchema)
 });
 
 export type TemplateFormValues = z.infer<typeof templateFormSchema>;
+
+const toOrderedItems = (items: { title: string }[] | undefined) =>
+  items?.map((item, index) => ({ title: item.title, sortOrder: index })) ?? [{ title: "", sortOrder: 0 }];
 
 export function TemplateForm({
   initial,
@@ -44,11 +64,13 @@ export function TemplateForm({
       icon: initial?.icon ?? "Sunrise",
       category: initial?.category ?? "",
       journalPrompt: initial?.journalPrompt ?? "",
-      habits: initial?.habits.map((habit, index) => ({ title: habit.title, sortOrder: index })) ?? [{ title: "", sortOrder: 0 }]
+      habits: toOrderedItems(initial?.habits),
+      tasks: toOrderedItems(initial?.tasks)
     }
   });
 
   const habits = useFieldArray({ control: form.control, name: "habits" });
+  const tasks = useFieldArray({ control: form.control, name: "tasks" });
 
   return (
     <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
@@ -105,7 +127,25 @@ export function TemplateForm({
         <Textarea id="description" placeholder="What this block is for." {...form.register("description")} />
       </div>
 
-      <ItemEditor title="Habits" fields={habits.fields} register={form.register} append={() => habits.append({ title: "", sortOrder: habits.fields.length })} remove={habits.remove} />
+      <ItemEditor
+        title="Habits"
+        name="habits"
+        fields={habits.fields}
+        register={form.register}
+        append={() => habits.append({ title: "", sortOrder: habits.fields.length })}
+        remove={habits.remove}
+        move={habits.move}
+      />
+
+      <ItemEditor
+        title="Tasks"
+        name="tasks"
+        fields={tasks.fields}
+        register={form.register}
+        append={() => tasks.append({ title: "", sortOrder: tasks.fields.length })}
+        remove={tasks.remove}
+        move={tasks.move}
+      />
 
       <div className="space-y-2">
         <Label htmlFor="journalPrompt">Default journal prompt</Label>
@@ -122,17 +162,37 @@ export function TemplateForm({
 
 function ItemEditor({
   title,
+  name,
   fields,
   register,
   append,
-  remove
+  remove,
+  move
 }: {
   title: string;
+  name: "habits" | "tasks";
   fields: { id: string }[];
-  register: ReturnType<typeof useForm<TemplateFormValues>>["register"];
+  register: UseFormRegister<TemplateFormValues>;
   append: () => void;
   remove: (index: number) => void;
+  move: (from: number, to: number) => void;
 }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const from = fields.findIndex((field) => field.id === active.id);
+    const to = fields.findIndex((field) => field.id === over.id);
+    if (from === -1 || to === -1) return;
+
+    move(from, to);
+  };
+
   return (
     <div className="rounded-lg border p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -142,17 +202,46 @@ function ItemEditor({
           Add
         </Button>
       </div>
-      <div className="space-y-2">
-        {fields.map((field, index) => (
-          <div key={field.id} className="flex gap-2">
-            <Input placeholder={`${title.slice(0, -1)} title`} {...register(`habits.${index}.title`)} />
-            <input type="hidden" {...register(`habits.${index}.sortOrder`, { valueAsNumber: true })} value={index} readOnly />
-            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} aria-label={`Remove ${title.slice(0, -1).toLowerCase()}`}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={fields.map((field) => field.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2">
+            {fields.map((field, index) => (
+              <SortableItem key={field.id} id={field.id}>
+                <Input placeholder={`${title.slice(0, -1)} title`} {...register(`${name}.${index}.title`)} />
+                <input type="hidden" {...register(`${name}.${index}.sortOrder`, { valueAsNumber: true })} value={index} readOnly />
+                <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} aria-label={`Remove ${title.slice(0, -1).toLowerCase()}`}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </SortableItem>
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+}
+
+function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+      <button
+        type="button"
+        className="grid h-10 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:text-foreground"
+        aria-label="Drag to reorder"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      {children}
     </div>
   );
 }

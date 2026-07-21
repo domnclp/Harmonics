@@ -21,6 +21,31 @@ const includeBlock = {
   schedule: true
 };
 
+const toDateOnly = (date?: string | null) => (date ? new Date(`${date}T00:00:00.000Z`) : null);
+
+const assertNoDuplicate = async (
+  userId: string,
+  input: { templateId: string; dayOfWeek: number; startTime: string; endTime: string; recurrenceRule?: string; date?: string | null },
+  excludeId?: string
+) => {
+  const existing = await prisma.scheduleBlock.findFirst({
+    where: {
+      userId,
+      templateId: input.templateId,
+      dayOfWeek: input.dayOfWeek,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      recurrenceRule: input.recurrenceRule ?? "WEEKLY",
+      date: toDateOnly(input.date),
+      id: excludeId ? { not: excludeId } : undefined
+    }
+  });
+
+  if (existing) {
+    throw new AppError(409, "An identical schedule block already exists for this day and time");
+  }
+};
+
 export const scheduleBlockService = {
   list(userId: string) {
     return prisma.scheduleBlock.findMany({
@@ -38,6 +63,8 @@ export const scheduleBlockService = {
 
     if (!schedule) throw new AppError(404, "Schedule not found");
     if (!template) throw new AppError(404, "Template not found");
+
+    await assertNoDuplicate(userId, input);
 
     return prisma.scheduleBlock.create({
       data: {
@@ -82,6 +109,17 @@ export const scheduleBlockService = {
       throw new AppError(404, "Template not found");
     }
 
+    const seen = new Set<string>();
+    for (const input of inputs) {
+      const key = [input.templateId, input.dayOfWeek, input.startTime, input.endTime, input.recurrenceRule ?? "WEEKLY", input.date ?? ""].join("|");
+      if (seen.has(key)) {
+        throw new AppError(409, "Duplicate schedule blocks in the same request");
+      }
+      seen.add(key);
+    }
+
+    await Promise.all(inputs.map((input) => assertNoDuplicate(userId, input)));
+
     return prisma.$transaction(
       inputs.map((input) =>
         prisma.scheduleBlock.create({
@@ -111,7 +149,7 @@ export const scheduleBlockService = {
   },
 
   async update(userId: string, id: string, input: Partial<ScheduleBlockInput>) {
-    await this.get(userId, id);
+    const current = await this.get(userId, id);
 
     if (input.scheduleId) {
       const schedule = await prisma.schedule.findFirst({ where: { id: input.scheduleId, userId } });
@@ -122,6 +160,19 @@ export const scheduleBlockService = {
       const template = await prisma.blockTemplate.findFirst({ where: { id: input.templateId, userId } });
       if (!template) throw new AppError(404, "Template not found");
     }
+
+    await assertNoDuplicate(
+      userId,
+      {
+        templateId: input.templateId ?? current.templateId,
+        dayOfWeek: input.dayOfWeek ?? current.dayOfWeek,
+        startTime: input.startTime ?? current.startTime,
+        endTime: input.endTime ?? current.endTime,
+        recurrenceRule: input.recurrenceRule ?? current.recurrenceRule,
+        date: input.date !== undefined ? input.date : current.date?.toISOString().slice(0, 10)
+      },
+      id
+    );
 
     const updatedBlock = await prisma.scheduleBlock.update({
       where: { id },

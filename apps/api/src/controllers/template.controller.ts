@@ -16,7 +16,7 @@ const templateSchema = z.object({
   journalPrompt: z.string().max(500).nullable().optional(),
   isTemporary: z.boolean().optional(),
   habits: z.array(itemSchema).default([]),
-  tasks: z.array(itemSchema).optional()
+  tasks: z.array(itemSchema).default([])
 });
 
 const updateTemplateSchema = templateSchema.partial();

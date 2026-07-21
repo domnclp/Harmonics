@@ -17,8 +17,7 @@ export function TemplatesPage() {
     const payload = {
       ...values,
       description: values.description || null,
-      journalPrompt: values.journalPrompt || null,
-      tasks: []
+      journalPrompt: values.journalPrompt || null
     };
     if (editing) {
       updateTemplate.mutate({ id: editing.id, payload }, { onSuccess: () => closeDialog() });

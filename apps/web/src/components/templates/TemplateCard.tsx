@@ -39,12 +39,40 @@ export function TemplateCard({
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        {template.description && <p className="mb-4 text-sm text-muted-foreground">{template.description}</p>}
-        <div className="mb-2 text-sm font-medium">Habits</div>
-        <ul className="space-y-1 text-sm text-muted-foreground">
-          {template.habits.length ? template.habits.map((habit) => <li key={habit.id}>{habit.title}</li>) : <li>No habits yet</li>}
-        </ul>
+      <CardContent className="space-y-4">
+        {template.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
+
+        <div className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Habits</div>
+          {template.habits.length ? (
+            <ul className="space-y-1.5">
+              {template.habits.map((habit) => (
+                <li key={habit.id} className="flex items-start gap-2 text-sm">
+                  <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                  <span>{habit.title}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">No habits yet</p>
+          )}
+        </div>
+
+        <div className="space-y-2 border-t pt-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tasks</div>
+          {template.tasks.length ? (
+            <ul className="space-y-1.5">
+              {template.tasks.map((task) => (
+                <li key={task.id} className="flex items-start gap-2 text-sm">
+                  <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                  <span>{task.title}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">No tasks yet</p>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

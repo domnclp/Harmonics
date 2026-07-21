@@ -49,6 +49,12 @@ export const templateService = {
             title: habit.title,
             sortOrder: habit.sortOrder ?? index
           }))
+        },
+        tasks: {
+          create: (input.tasks ?? []).map((task, index) => ({
+            title: task.title,
+            sortOrder: task.sortOrder ?? index
+          }))
         }
       },
       include: includeTemplateItems
@@ -92,7 +98,14 @@ export const templateService = {
                 }))
               }
             : undefined,
-          tasks: undefined
+          tasks: input.tasks
+            ? {
+                create: input.tasks.map((task, index) => ({
+                  title: task.title,
+                  sortOrder: task.sortOrder ?? index
+                }))
+              }
+            : undefined
         },
         include: includeTemplateItems
       });
