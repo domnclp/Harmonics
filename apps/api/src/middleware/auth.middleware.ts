@@ -5,12 +5,22 @@ import { env } from "../config/env.js";
 import { prisma } from "../prisma/client.js";
 import { AppError } from "./error.middleware.js";
 
-const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
+// Constructed lazily: createClient always instantiates a RealtimeClient, which
+// throws at import on Node < 21 for want of a native WebSocket. We only ever
+// call supabase.auth.getUser(), and only when local HMAC verification fails, so
+// there is no reason to build it eagerly.
+let supabaseClient: ReturnType<typeof createClient> | null = null;
+
+const getSupabase = () => {
+  supabaseClient ??= createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+
+  return supabaseClient;
+};
 
 const authCache = new Map<string, { user: AuthUser; expiresAt: number }>();
 const authCacheTtlMs = 2 * 60 * 1000;
@@ -79,7 +89,7 @@ const verifyTokenLocally = (token: string): VerifiedTokenUser | null => {
 };
 
 const verifyTokenWithSupabase = async (token: string): Promise<VerifiedTokenUser> => {
-  const { data, error } = await supabase.auth.getUser(token);
+  const { data, error } = await getSupabase().auth.getUser(token);
 
   if (error || !data.user?.email) {
     throw new AppError(401, "Invalid or expired session");
