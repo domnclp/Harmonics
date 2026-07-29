@@ -5,7 +5,8 @@ import tseslint from "typescript-eslint";
 
 export default [
   {
-    ignores: ["dist"]
+    // dev-dist is vite-plugin-pwa's dev-server output, not source.
+    ignores: ["dist", "dev-dist"]
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

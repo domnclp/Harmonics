@@ -1,6 +1,16 @@
 import { supabase } from "./supabase";
 
-const normalizeEnvUrl = (value: string) => value.replace(/^[A-Z0-9_]+=/, "").replace(/\/+$/, "");
+const normalizeEnvUrl = (value: string) => {
+  // Tolerates a pasted "KEY=value" and strips trailing slashes.
+  const trimmed = value.trim().replace(/^[A-Z0-9_]+=/, "").replace(/\/+$/, "");
+  if (!trimmed) return trimmed;
+
+  // A scheme-less host is treated by fetch() as a relative path, so requests
+  // silently hit the web origin and the SPA fallback returns HTML that then
+  // fails to parse as JSON. Assume https rather than fail this obscurely.
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `${trimmed.startsWith("localhost") ? "http" : "https"}://${trimmed}`;
+};
 
 export const API_URL = normalizeEnvUrl(import.meta.env.VITE_API_URL ?? "http://localhost:4000");
 
