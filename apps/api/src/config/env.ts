@@ -20,4 +20,14 @@ const envSchema = z.object({
     .transform((value) => value === "true")
 });
 
-export const env = envSchema.parse(process.env);
+const parsed = envSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  // A raw ZodError is near-unreadable in deployment logs, and this throws at
+  // import time — so name the offending variables explicitly.
+  const issues = parsed.error.issues.map((issue) => `  ${issue.path.join(".")}: ${issue.message}`).join("\n");
+  console.error(`Invalid environment configuration:\n${issues}`);
+  throw new Error("Invalid environment configuration");
+}
+
+export const env = parsed.data;
