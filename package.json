@@ -7,7 +7,7 @@
     "apps/web"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": "22"
   },
   "scripts": {
     "dev": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .vscode/start-dev.ps1",
