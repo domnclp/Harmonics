@@ -6,6 +6,9 @@
     "apps/api",
     "apps/web"
   ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .vscode/start-dev.ps1",
     "build": "npm run build --workspace @harmonics/api && npm run build --workspace @harmonics/web",
