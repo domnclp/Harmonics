@@ -9,16 +9,19 @@ datasource db {
 }
 
 model User {
-  id                String            @id
-  email             String            @unique
-  name              String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  schedules         Schedule[]
-  blockTemplates    BlockTemplate[]
-  scheduleBlocks    ScheduleBlock[]
-  blockInstances    BlockInstance[]
-  settings          UserSettings?
+  id                     String                  @id
+  email                  String                  @unique
+  name                   String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  schedules              Schedule[]
+  blockTemplates         BlockTemplate[]
+  scheduleBlocks         ScheduleBlock[]
+  blockInstances         BlockInstance[]
+  settings               UserSettings?
+  pushSubscriptions      PushSubscription[]
+  notificationPreference NotificationPreference?
+  notificationLogs       NotificationLog[]
 }
 
 model UserSettings {
@@ -28,9 +31,58 @@ model UserSettings {
   scheduleEnd     String   @default("23:00")
   weekStartsOn    String   @default("monday")
   activeDays      String   @default("0,1,2,3,4,5,6")
+  // IANA time zone. "UTC" is the never-set default so the web client can tell
+  // an unconfigured value from a deliberate choice and autodetect exactly once.
+  timezone        String   @default("UTC")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  // Globally unique per browser profile; used as the upsert target so a device
+  // re-subscribing replaces its old row instead of accumulating duplicates.
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model NotificationPreference {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  headsUpEnabled     Boolean  @default(true)
+  headsUpMinutes     Int      @default(30)
+  blockStartEnabled  Boolean  @default(false)
+  blockEndEnabled    Boolean  @default(true)
+  streakRiskEnabled  Boolean  @default(false)
+  streakRiskTime     String   @default("20:00")
+  dailyAgendaEnabled Boolean  @default(true)
+  dayWrapUpEnabled   Boolean  @default(false)
+  dayWrapUpTime      String   @default("21:30")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationLog {
+  id        String   @id @default(cuid())
+  userId    String
+  // "<userId>:<kind>:<dateKey>:<blockId|->" — claimed before sending so the
+  // unique constraint makes the scheduler idempotent across restarts.
+  dedupeKey String   @unique
+  kind      String
+  sentAt    DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sentAt])
 }
 
 model Schedule {

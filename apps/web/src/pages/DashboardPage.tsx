@@ -1,5 +1,5 @@
 import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, Plus } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { LoadError } from "../components/ui/load-error";
@@ -148,11 +148,36 @@ export function DashboardPage() {
   );
   const timelineHeight = timelineSlots.length * rowHeight;
   const { data: blocks = [], error: blocksError, isError: blocksIsError, deleteBlock } = useScheduleBlocks();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openedDeepLink = useRef(false);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), 30_000);
     return () => window.clearInterval(interval);
   }, []);
+
+  // Notification deep link: /dashboard?block=<id>&date=<YYYY-MM-DD>. Blocks load
+  // asynchronously, so this waits for them rather than firing once on mount.
+  useEffect(() => {
+    if (openedDeepLink.current || !blocks.length) return;
+
+    const blockId = searchParams.get("block");
+    const date = searchParams.get("date");
+    if (!blockId) return;
+
+    const block = blocks.find((item) => item.id === blockId);
+    openedDeepLink.current = true;
+
+    if (block) {
+      const targetDate = date ?? toDateKey(new Date());
+      setActiveDate(new Date(`${targetDate}T00:00:00`));
+      setSelected({ block, date: targetDate });
+      // The initial-date sync would otherwise snap the view back to today.
+      syncedInitialScheduleDate.current = true;
+    }
+
+    setSearchParams({}, { replace: true });
+  }, [blocks, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (syncedInitialScheduleDate.current) return;

@@ -4,13 +4,34 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
+import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
 import { useAuth } from "../hooks/useAuth";
 import { getStoredScheduleWindow, saveScheduleWindowToServer } from "../hooks/useScheduleWindow";
 import { getStoredWeekStartsOn, saveWeekStartsOnToServer } from "../hooks/useWeekStartsOn";
 import { getStoredActiveDays, saveActiveDaysToServer } from "../hooks/useActiveDays";
+import { detectTimezone, useTimezone, saveTimezoneToServer } from "../hooks/useTimezone";
 import { getDayOptions, type WeekStartsOn } from "../lib/date";
 
 type ThemeMode = "light" | "dark" | "system";
+
+// Intl.supportedValuesOf is widely available at runtime but is not in this
+// project's TS lib target, so it is narrowed here rather than widening lib.
+type IntlWithSupportedValues = typeof Intl & {
+  supportedValuesOf?: (key: "timeZone") => string[];
+};
+
+const getTimezoneOptions = (): string[] => {
+  try {
+    const supported = (Intl as IntlWithSupportedValues).supportedValuesOf?.("timeZone");
+    if (supported?.length) return supported;
+  } catch {
+    // fall through to the detected zone
+  }
+
+  return Array.from(new Set([detectTimezone(), "UTC"]));
+};
+
+const timezoneOptions = getTimezoneOptions();
 
 const getMetadataValue = (metadata: Record<string, unknown> | undefined, keys: string[]) => {
   for (const key of keys) {
@@ -41,9 +62,13 @@ export function SettingsPage() {
   const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(getStoredWeekStartsOn);
   const [savedActiveDays, setSavedActiveDays] = useState(getStoredActiveDays);
   const [activeDays, setActiveDays] = useState(getStoredActiveDays);
+  const savedTimezone = useTimezone();
+  const [timezone, setTimezone] = useState(savedTimezone);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [weekSaving, setWeekSaving] = useState(false);
   const [activeDaysSaving, setActiveDaysSaving] = useState(false);
+  const [timezoneSaving, setTimezoneSaving] = useState(false);
+  const timezoneChanged = timezone !== savedTimezone;
   const activeDaysChanged = JSON.stringify([...activeDays].sort()) !== JSON.stringify([...savedActiveDays].sort());
   const activeDaysValid = activeDays.length > 0;
   const scheduleWindowChanged = scheduleStart !== savedScheduleWindow.startTime || scheduleEnd !== savedScheduleWindow.endTime;
@@ -67,6 +92,12 @@ export function SettingsPage() {
   useEffect(() => {
     localStorage.setItem("timeFormat", timeFormat);
   }, [timeFormat]);
+
+  // useTimezone resolves asynchronously (localStorage first, then server), so
+  // keep the draft in step until the user edits it.
+  useEffect(() => {
+    setTimezone(savedTimezone);
+  }, [savedTimezone]);
 
   useEffect(() => {
     setWeekSaving(true);
@@ -111,6 +142,19 @@ export function SettingsPage() {
 
   const undoActiveDays = () => {
     setActiveDays(savedActiveDays);
+  };
+
+  const saveTimezone = async () => {
+    setTimezoneSaving(true);
+    try {
+      await saveTimezoneToServer(timezone);
+    } finally {
+      setTimezoneSaving(false);
+    }
+  };
+
+  const undoTimezone = () => {
+    setTimezone(savedTimezone);
   };
 
   const saveProfile = async () => {
@@ -280,6 +324,37 @@ export function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Time zone</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Used to send reminders at the right local time. Detected automatically the first time you sign in.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="timezone">Time zone</Label>
+              <Select id="timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)} disabled={timezoneSaving}>
+                {timezoneOptions.map((zone) => (
+                  <option key={zone} value={zone}>{zone}</option>
+                ))}
+              </Select>
+            </div>
+            {timezoneChanged && (
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={() => void saveTimezone()} disabled={timezoneSaving}>
+                  {timezoneSaving ? "Saving..." : "Save"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={undoTimezone} disabled={timezoneSaving}>
+                  Undo
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <NotificationSettingsCard />
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import { analyticsRoutes } from "./routes/analytics.routes.js";
 import { blockInstanceRoutes } from "./routes/blockInstance.routes.js";
 import { completionRoutes } from "./routes/completion.routes.js";
 import { journalRoutes } from "./routes/journal.routes.js";
+import { pushRoutes } from "./routes/push.routes.js";
 import { scheduleBlockRoutes } from "./routes/scheduleBlock.routes.js";
 import { scheduleRoutes } from "./routes/schedule.routes.js";
 import { templateRoutes } from "./routes/template.routes.js";
@@ -86,6 +87,7 @@ app.use("/api", requireAuth, completionRoutes);
 app.use("/api/journal-entries", requireAuth, journalRoutes);
 app.use("/api/analytics", requireAuth, analyticsRoutes);
 app.use("/api/user-settings", requireAuth, userSettingsRoutes);
+app.use("/api/push", requireAuth, pushRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -1,3 +1,6 @@
+// Mirrors apps/api/src/lib/recurrence.ts — keep in sync.
+// This copy parses and reads LOCAL time; the API copy is all-UTC. Each is
+// internally consistent, so both agree on the same dateKey.
 import type { ScheduleBlock } from "../types";
 import { dayOfWeekMondayFirst } from "./date";
 

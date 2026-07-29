@@ -10,11 +10,23 @@ const activeDaysSchema = z
     return days.length > 0 && new Set(days).size === days.length;
   }, "Days must be unique");
 
+// Validate against the ICU database rather than a regex — Intl is authoritative
+// and throws RangeError on anything it cannot resolve.
+const timezoneSchema = z.string().min(1).refine((value) => {
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}, "Use a valid IANA time zone");
+
 const settingsUpdateSchema = z.object({
   scheduleStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   scheduleEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   weekStartsOn: z.enum(["monday", "sunday"]).optional(),
-  activeDays: activeDaysSchema.optional()
+  activeDays: activeDaysSchema.optional(),
+  timezone: timezoneSchema.optional()
 });
 
 export const userSettingsController = {

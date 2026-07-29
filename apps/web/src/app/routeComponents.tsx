@@ -1,4 +1,4 @@
-import { Navigate, Outlet, useRouteError } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useRouteError } from "react-router-dom";
 import { AppLayout } from "../components/layout/AppLayout";
 import { Button } from "../components/ui/button";
 import { useAuth } from "../hooks/useAuth";
@@ -32,12 +32,17 @@ export function RouteError() {
 
 export function ProtectedRoute() {
   const { session, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <div className="grid min-h-screen place-items-center text-muted-foreground">Loading workspace...</div>;
   }
 
-  if (!session) return <Navigate to="/login" replace />;
+  // Carry the attempted URL through login, otherwise tapping a notification
+  // while signed out silently drops its ?block= target.
+  if (!session) {
+    return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}` }} replace />;
+  }
 
   return (
     <AppLayout>
@@ -48,7 +53,10 @@ export function ProtectedRoute() {
 
 export function PublicRoute() {
   const { session, loading } = useAuth();
+  const location = useLocation();
+  const redirectTo = (location.state as { from?: string } | null)?.from ?? "/dashboard";
+
   if (loading) return <div className="grid min-h-screen place-items-center text-muted-foreground">Loading...</div>;
-  if (session) return <Navigate to="/dashboard" replace />;
+  if (session) return <Navigate to={redirectTo} replace />;
   return <Outlet />;
 }

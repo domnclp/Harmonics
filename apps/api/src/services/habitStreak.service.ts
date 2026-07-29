@@ -73,3 +73,66 @@ export const withHabitStreaks = async <T extends HabitForStreak>(habits: T[]): P
   const streaks = await Promise.all(habits.map((habit) => getHabitStreak(habit)));
   return habits.map((habit, index) => ({ ...habit, streak: streaks[index] ?? 0 }));
 };
+
+export type UserHabitStreak = {
+  key: string;
+  title: string;
+  streak: number;
+};
+
+/**
+ * Every current habit streak for a user, in ONE query.
+ *
+ * getHabitStreak/withHabitStreaks issue a query per habit with unbounded
+ * history, which is fine for a single request but becomes N+1 when the
+ * scheduler fans out over a day's blocks. This groups in memory instead and
+ * bounds the lookback, since no streak worth notifying about exceeds it.
+ *
+ * Keep the day-walk semantics in sync with getHabitStreak above.
+ */
+export const getUserHabitStreaks = async (
+  userId: string,
+  dateKey: string,
+  lookbackDays = 90
+): Promise<Map<string, UserHabitStreak>> => {
+  const end = new Date(`${dateKey}T00:00:00.000Z`);
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - lookbackDays);
+
+  const history = await prisma.habitCompletion.findMany({
+    where: {
+      completed: true,
+      instance: { userId, date: { gte: start, lte: end } }
+    },
+    select: {
+      templateHabitId: true,
+      title: true,
+      instance: { select: { templateId: true, date: true } }
+    }
+  });
+
+  // Group by the same identity rule getHabitStreak uses: templateHabitId when
+  // present, else the template+title pair for ad-hoc items.
+  const groups = new Map<string, { title: string; dates: Set<string> }>();
+  for (const item of history) {
+    const key = item.templateHabitId ?? `${item.instance.templateId}:${item.title}`;
+    const group = groups.get(key) ?? { title: item.title, dates: new Set<string>() };
+    group.dates.add(toDateKey(item.instance.date));
+    groups.set(key, group);
+  }
+
+  const streaks = new Map<string, UserHabitStreak>();
+  for (const [key, group] of groups) {
+    let cursor = dateKey;
+    let streak = 0;
+
+    while (group.dates.has(cursor)) {
+      streak += 1;
+      cursor = previousDateKey(cursor);
+    }
+
+    if (streak > 0) streaks.set(key, { key, title: group.title, streak });
+  }
+
+  return streaks;
+};

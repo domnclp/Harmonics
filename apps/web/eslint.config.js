@@ -26,12 +26,23 @@ export default [
     languageOptions: {
       ecmaVersion: 2020,
       globals: {
+        atob: "readonly",
+        btoa: "readonly",
+        clearTimeout: "readonly",
         console: "readonly",
         document: "readonly",
         fetch: "readonly",
         Headers: "readonly",
         localStorage: "readonly",
+        navigator: "readonly",
+        Notification: "readonly",
+        PushManager: "readonly",
+        PushSubscription: "readonly",
         RequestInit: "readonly",
+        ServiceWorkerGlobalScope: "readonly",
+        ServiceWorkerRegistration: "readonly",
+        self: "readonly",
+        setTimeout: "readonly",
         window: "readonly"
       }
     },
