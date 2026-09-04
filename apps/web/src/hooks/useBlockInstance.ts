@@ -7,6 +7,8 @@ type CompletionUpdate = {
   id: string;
   completed?: boolean;
   failureReason?: string | null;
+  // Present on habits from a day that has not been stored yet.
+  templateHabitId?: string | null;
 };
 
 type CompletionResponse = Completion & {
@@ -36,6 +38,14 @@ type InstanceCompletionUpdate = {
   failureReason?: string | null;
   journalContent?: string;
 };
+
+/**
+ * A derived day has no journal row yet, so there is no id to carry over. The
+ * content is still worth showing optimistically; the real entry arrives when
+ * the day is materialized.
+ */
+const withJournalContent = (entry: BlockInstance["journalEntry"], content: string | undefined) =>
+  content === undefined ? entry : entry ? { ...entry, content } : null;
 
 const getCompletionPercentage = (instance: BlockInstance) => {
   const items = [...instance.habitCompletions, ...instance.taskCompletions];
@@ -110,9 +120,34 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
     );
   };
 
+  /**
+   * Stores a day that is still derived, so something can be recorded against
+   * it. Returns the saved instance — with real ids — for the caller to use.
+   */
+  const materialize = useMutation({
+    mutationFn: (variables: { scheduleBlockId: string; date: string }) =>
+      apiFetch<BlockInstance>("/api/block-instances/find-or-create", { method: "POST", body: variables }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData<BlockInstance>(queryKey, saved);
+      queryClient.invalidateQueries({ queryKey: dashboardKey });
+    }
+  });
+
   const updateHabit = useMutation({
-    mutationFn: ({ id, completed, failureReason }: CompletionUpdate) =>
-      apiFetch<CompletionResponse>(`/api/habit-completions/${id}`, { method: "PATCH", body: { completed, failureReason } }),
+    mutationFn: ({ id, completed, failureReason, templateHabitId }: CompletionUpdate) =>
+      apiFetch<CompletionResponse>(`/api/habit-completions/${id}`, {
+        method: "PATCH",
+        body: {
+          completed,
+          failureReason,
+          // A day nobody has marked yet is not stored, so its habit ids are
+          // synthetic. Sending the block and date lets the API create the day
+          // on the first tick.
+          ...(id.startsWith("derived:") && scheduleBlockId && date
+            ? { context: { scheduleBlockId, date, templateHabitId } }
+            : {})
+        }
+      }),
     onMutate: async ({ id, completed, failureReason }) => {
       await queryClient.cancelQueries({ queryKey });
       await queryClient.cancelQueries({ queryKey: dashboardKey });
@@ -132,6 +167,14 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
         { completed: updated.completed, failureReason: updated.failureReason, streak: updated.streak },
         updated.instanceCompletionPercentage
       );
+
+      // Ticking a habit on an unsaved day creates it server-side, so the
+      // synthetic ids in the cache are now wrong. Refetch to pick up the real
+      // ones, or every later tick would 404.
+      if (id.startsWith("derived:")) {
+        queryClient.invalidateQueries({ queryKey });
+        queryClient.invalidateQueries({ queryKey: dashboardKey });
+      }
     }
   });
 
@@ -289,7 +332,7 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
           return {
             ...current,
             completionPercentage: getCompletionPercentage(current),
-            journalEntry: journalContent === undefined ? current.journalEntry : { ...current.journalEntry, content: journalContent }
+            journalEntry: withJournalContent(current.journalEntry, journalContent)
           };
         }
 
@@ -301,7 +344,7 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
         return {
           ...current,
           completionPercentage: 0,
-          journalEntry: journalContent === undefined ? current.journalEntry : { ...current.journalEntry, content: journalContent },
+          journalEntry: withJournalContent(current.journalEntry, journalContent),
           habitCompletions: current.habitCompletions.map((item) => ({ ...item, ...patch })),
           taskCompletions: current.taskCompletions.map((item) => ({ ...item, ...patch }))
         };
@@ -314,7 +357,7 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
             return {
               ...item,
               completionPercentage: getCompletionPercentage(item),
-              journalEntry: journalContent === undefined ? item.journalEntry : { ...item.journalEntry, content: journalContent }
+              journalEntry: withJournalContent(item.journalEntry, journalContent)
             };
           }
 
@@ -326,7 +369,7 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
           return {
             ...item,
             completionPercentage: 0,
-            journalEntry: journalContent === undefined ? item.journalEntry : { ...item.journalEntry, content: journalContent },
+            journalEntry: withJournalContent(item.journalEntry, journalContent),
             habitCompletions: item.habitCompletions.map((completion) => ({ ...completion, ...patch })),
             taskCompletions: item.taskCompletions.map((completion) => ({ ...completion, ...patch }))
           };
@@ -350,5 +393,5 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
     }
   });
 
-  return { ...instance, updateHabit, updateTask, createTask, deleteTask, moveTask, updateJournal, updateInstanceCompletion };
+  return { ...instance, materialize, updateHabit, updateTask, createTask, deleteTask, moveTask, updateJournal, updateInstanceCompletion };
 }

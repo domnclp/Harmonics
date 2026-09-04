@@ -1,7 +1,7 @@
 import { prisma } from "../prisma/client.js";
 import { AppError } from "../middleware/error.middleware.js";
 import { getHabitStreak } from "./habitStreak.service.js";
-import { blockInstanceService } from "./blockInstance.service.js";
+import { blockInstanceService, derivedPrefix } from "./blockInstance.service.js";
 
 type CompletionUpdate = {
   completed?: boolean;
@@ -36,9 +36,32 @@ const updateInstanceCompletion = async (instanceId: string) => {
 };
 
 export const completionService = {
-  async updateHabit(userId: string, id: string, input: CompletionUpdate) {
+  /**
+   * `context` is sent when the day is still derived (id starts with "derived:")
+   * — an untouched day is not stored, so the row being ticked does not exist
+   * yet. Materializing here is what turns "planned" into "recorded".
+   */
+  async updateHabit(
+    userId: string,
+    id: string,
+    input: CompletionUpdate,
+    context?: { scheduleBlockId: string; date: string; templateHabitId: string }
+  ) {
+    let habitId = id;
+
+    if (id.startsWith(derivedPrefix)) {
+      if (!context) throw new AppError(400, "Missing block context for an unsaved day");
+
+      const instance = await blockInstanceService.materialize(userId, context.scheduleBlockId, context.date);
+      const row = instance.habitCompletions.find((habit) => habit.templateHabitId === context.templateHabitId);
+      if (!row) throw new AppError(404, "Habit completion not found");
+
+      // The day exists now, so carry on with the real row id.
+      habitId = row.id;
+    }
+
     const completion = await prisma.habitCompletion.findFirst({
-      where: { id, instance: { userId } },
+      where: { id: habitId, instance: { userId } },
       include: {
         instance: {
           select: {
@@ -52,7 +75,7 @@ export const completionService = {
     if (!completion) throw new AppError(404, "Habit completion not found");
 
     const updated = await prisma.habitCompletion.update({
-      where: { id },
+      where: { id: habitId },
       data: input
     });
     const completionPercentage = await updateInstanceCompletion(completion.instanceId);

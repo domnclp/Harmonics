@@ -47,9 +47,15 @@ Notification tables: `PushSubscription` (one row per browser/device, unique on `
 
 **RLS convention**: every new table in the `public` schema needs `ENABLE ROW LEVEL SECURITY` with **no policies** — Supabase exposes `public` to PostgREST, but the app only ever reaches Postgres through Prisma. Add it in a separate migration alongside the schema one (see `20260729013332_enable_rls_notification_tables`).
 
-Two model quirks worth knowing before touching completion logic:
-- `blockInstanceService.findOrCreate` materializes `HabitCompletion` rows from `template.habits` but **not** `TaskCompletion` rows — template tasks are never materialized, so a never-opened block's checklist is habits-only.
+**A day is stored only once it holds real user data.** `BlockInstance` is a record of what happened, not a cache of what was planned:
+
+- `blockInstanceService.getForDate` is the **read** path and never writes. An untouched day is derived live from the block's template and returned with `id: null` and synthetic `derived:<templateHabitId>` habit ids. Derived data cannot go stale, which is what makes "habits carried over after changing a template" structurally impossible rather than merely fixed — the old snapshot-on-open behaviour caused that bug repeatedly.
+- `blockInstanceService.materialize` is the **write** path, called only when something is recorded (ticking a habit, adding a task, journaling, marking incomplete). Ticking a `derived:` habit sends a `context` of `{scheduleBlockId, date, templateHabitId}` so the API can create the day first, then the client refetches because the synthetic ids are now stale.
+- A day that *is* stored gets reconciled against the block's template on every read via `syncInstanceHabits`, so no write path can forget to sync. Past days are never reconciled — they record what actually happened.
+- **The block, not the instance, is the source of truth for which template applies.** `BlockInstance.templateId` still exists and duplicates `scheduleBlock.templateId`; when they disagree the block wins. That redundancy is what let four instances drift and simultaneously hid it from an audit comparing habits against `instance.template`. Dropping the column is the intended follow-up.
+- The notification scheduler must use `getForDate`, never `findOrCreate` — the tick runs every five minutes and would otherwise store days the user never opened.
 - `completionPercentage: 0` is ambiguous (both "untouched" and "explicitly marked failed"). To detect genuinely unmarked items, filter on `!completed && !failureReason`.
+- `apps/api/scripts/audit-instance-habits.ts` (read-only) and `repair-instance-habits.ts` (`--apply` to write) exist for pre-existing drift; both compare against the block's template.
 
 ## Notifications
 

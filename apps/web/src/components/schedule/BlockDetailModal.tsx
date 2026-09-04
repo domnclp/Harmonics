@@ -28,7 +28,7 @@ export function BlockDetailModal({
   onClose: () => void;
   onDelete: (id: string) => void;
 }) {
-  const { data: instance, isLoading, updateHabit, updateTask, createTask, deleteTask, moveTask, updateJournal, updateInstanceCompletion } = useBlockInstance(block?.id, date);
+  const { data: instance, isLoading, materialize, updateHabit, updateTask, createTask, deleteTask, moveTask, updateJournal, updateInstanceCompletion } = useBlockInstance(block?.id, date);
   const { sortedTemplates: templates } = useTemplates();
   const { updateBlock } = useScheduleBlocks();
   const weekStartsOn = useWeekStartsOn();
@@ -100,19 +100,29 @@ export function BlockDetailModal({
   const completionUpdatePending = updateHabit.isPending || updateTask.isPending || updateJournal.isPending || updateInstanceCompletion.isPending;
   const taskChangePending = createTask.isPending || deleteTask.isPending;
 
-  const saveProgress = async () => {
-    if (!instance) return;
+  // An untouched day is derived, not stored, so it has no id yet. Anything that
+  // records something has to create the day first.
+  const ensureInstance = async () => {
+    if (instance?.id) return instance;
+    if (!block || !date) return null;
+    return materialize.mutateAsync({ scheduleBlockId: block.id, date });
+  };
 
-    await updateJournal.mutateAsync({ id: instance.journalEntry.id, content: journal });
+  const saveProgress = async () => {
+    const saved = await ensureInstance();
+    if (!saved?.journalEntry) return;
+
+    await updateJournal.mutateAsync({ id: saved.journalEntry.id, content: journal });
     onClose();
   };
 
   const markIncomplete = async () => {
-    if (!instance) return;
+    const saved = await ensureInstance();
+    if (!saved?.id) return;
 
     const reason = incompleteReason.trim() || null;
     await updateInstanceCompletion.mutateAsync({
-      id: instance.id,
+      id: saved.id,
       completed: false,
       failureReason: reason,
       journalContent: journal
@@ -122,12 +132,13 @@ export function BlockDetailModal({
   };
 
   const addTask = async () => {
-    if (!instance) return;
-
     const title = newTaskTitle.trim();
     if (!title) return;
 
-    await createTask.mutateAsync({ instanceId: instance.id, title });
+    const saved = await ensureInstance();
+    if (!saved?.id) return;
+
+    await createTask.mutateAsync({ instanceId: saved.id, title });
     setNewTaskTitle("");
   };
 
@@ -253,7 +264,14 @@ export function BlockDetailModal({
               <Checklist
                 title="Habits"
                 items={instance.habitCompletions}
-                onToggle={(item, completed) => updateHabit.mutate({ id: item.id, completed, failureReason: completed ? null : item.failureReason })}
+                onToggle={(item, completed) =>
+                  updateHabit.mutate({
+                    id: item.id,
+                    completed,
+                    failureReason: completed ? null : item.failureReason,
+                    templateHabitId: item.templateHabitId
+                  })
+                }
                 showStreak
               />
             )}

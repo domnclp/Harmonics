@@ -255,9 +255,10 @@ const processUser = async (user: UserForTick, zoned: ZonedNow): Promise<number> 
 
     // Only blocks with something to mark can be "unmarked".
     if (prefs.blockEndEnabled && totalCount > 0 && isDue(toMinutes(block.endTime), minutes)) {
-      // findOrCreate materializes the instance so the notification can report
-      // real counts. Gated on the preference so the write stays opt-in.
-      const instance = await blockInstanceService.findOrCreate(user.id, block.id, dateKey);
+      // Read-only: the tick runs every five minutes, and materializing here
+      // would store days the user never opened — reintroducing the stale
+      // snapshots that deriving them on read exists to prevent.
+      const instance = await blockInstanceService.getForDate(user.id, block.id, dateKey);
       const unmarkedCount =
         countUnmarked(instance.habitCompletions) + countUnmarked(instance.taskCompletions);
 

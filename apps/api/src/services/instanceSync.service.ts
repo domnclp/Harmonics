@@ -1,25 +1,37 @@
 import { prisma } from "../prisma/client.js";
 
 /**
- * Reconciles a materialized BlockInstance's habit rows against its template.
+ * Past days are deliberately excluded from every sync: they are a record of
+ * what actually happened, and editing a template should never rewrite history.
+ * Comparing against UTC midnight matches how instance dates are stored
+ * (toDateOnly).
+ */
+const startOfToday = () => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+};
+
+/**
+ * Reconciles a stored BlockInstance's habit rows against a template.
  *
- * blockInstanceService.findOrCreate copies template.habits into HabitCompletion
- * rows once, when a day's block is first opened, and returns early on every
- * later read. That snapshot is deliberate — it is what lets a completed day stay
- * accurate after a template is edited — but it leaves two visible bugs:
- *
- *   1. Changing a block's template kept the old template's habits, because
- *      scheduleBlockService.update propagated only startTime/endTime.
- *   2. Adding a habit to a template did not appear on already-materialized days,
- *      so it only showed up the following week.
+ * Called on READ from blockInstanceService.getForDate, which is what makes it
+ * reliable: correctness no longer depends on every write path remembering to
+ * sync. A day the user has never marked is not stored at all — it is derived
+ * live from the template — so this only ever runs for days holding real data.
  *
  * Reconciling by templateHabitId rather than replacing wholesale is what keeps
  * this safe: rows the user has already ticked keep their completed state and
- * failureReason, so a sync can never silently erase progress.
+ * failureReason, so a sync can never silently erase progress. Rows with a null
+ * templateHabitId are the user's own one-off additions and always survive.
  *
- * Only future and current days are synced — see syncFutureInstancesForTemplate.
+ * Pass `date` to enforce the past-day guard; omit it when the caller has
+ * already filtered by date.
  */
-export const syncInstanceHabits = async (instanceId: string, templateId: string) => {
+export const syncInstanceHabits = async (instanceId: string, templateId: string, date?: Date) => {
+  // Past days record what actually happened; reconciling them would rewrite
+  // history and change completion percentages after the fact.
+  if (date && date < startOfToday()) return;
+
   const [instance, habits] = await Promise.all([
     prisma.blockInstance.findUnique({
       where: { id: instanceId },
@@ -93,16 +105,6 @@ export const syncInstancesForBlock = async (scheduleBlockId: string, templateId:
   for (const instance of instances) {
     await syncInstanceHabits(instance.id, templateId);
   }
-};
-
-/**
- * Past days are deliberately excluded: they are a record of what actually
- * happened, and editing a template should never rewrite history. Comparing
- * against UTC midnight matches how instance dates are stored (toDateOnly).
- */
-const startOfToday = () => {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 };
 
 /**

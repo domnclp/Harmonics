@@ -42,11 +42,14 @@ export type ScheduleBlock = {
 };
 
 export type Completion = {
+  // On a day nobody has marked yet this is a synthetic "derived:<habitId>" id;
+  // the row is created server-side on the first tick.
   id: string;
   title: string;
   completed: boolean;
   failureReason?: string | null;
   streak?: number;
+  templateHabitId?: string | null;
 };
 
 type JournalEntry = {
@@ -55,7 +58,12 @@ type JournalEntry = {
 };
 
 export type BlockInstance = {
-  id: string;
+  /**
+   * null on a day the user has not marked yet: such a day is derived from the
+   * template rather than stored, which is what stops it going stale when the
+   * template changes. It gains an id the moment anything is recorded.
+   */
+  id: string | null;
   scheduleBlockId: string;
   templateId: string;
   date: string;
@@ -66,5 +74,5 @@ export type BlockInstance = {
   template: BlockTemplate;
   habitCompletions: Completion[];
   taskCompletions: Completion[];
-  journalEntry: JournalEntry;
+  journalEntry: JournalEntry | null;
 };

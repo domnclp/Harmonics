@@ -7,6 +7,16 @@ const completionSchema = z.object({
   failureReason: z.string().max(80).nullable().optional()
 });
 
+// Sent only when ticking a habit on a day that has not been stored yet, so the
+// service knows which day to materialize.
+const habitContextSchema = z
+  .object({
+    scheduleBlockId: z.string().min(1),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a YYYY-MM-DD date"),
+    templateHabitId: z.string().min(1)
+  })
+  .optional();
+
 const instanceCompletionSchema = z.object({
   completed: z.boolean(),
   failureReason: z.string().max(80).nullable().optional(),
@@ -25,7 +35,8 @@ const taskMoveSchema = z.object({
 export const completionController = {
   async updateHabit(req: Request, res: Response) {
     const body = completionSchema.parse(req.body);
-    res.json(await completionService.updateHabit(req.authUser!.id, req.params.id as string, body));
+    const context = habitContextSchema.parse(req.body.context);
+    res.json(await completionService.updateHabit(req.authUser!.id, req.params.id as string, body, context));
   },
 
   async updateTask(req: Request, res: Response) {

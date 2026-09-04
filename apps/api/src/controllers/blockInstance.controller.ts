@@ -15,9 +15,12 @@ export const blockInstanceController = {
     res.json(await blockInstanceService.listByDate(req.authUser!.id, date));
   },
 
+  // A GET must not write. Opening a day now derives it from the template
+  // instead of storing a snapshot that can drift; the row appears the moment
+  // the user marks something.
   async get(req: Request, res: Response) {
     const date = dateSchema.parse(req.query.date);
-    res.json(await blockInstanceService.findOrCreate(req.authUser!.id, req.params.scheduleBlockId as string, date));
+    res.json(await blockInstanceService.getForDate(req.authUser!.id, req.params.scheduleBlockId as string, date));
   },
 
   async findOrCreate(req: Request, res: Response) {
