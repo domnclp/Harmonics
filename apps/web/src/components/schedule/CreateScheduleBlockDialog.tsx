@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarPlus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { formatTime, getDateForDayOfWeek, getDayOptions, getWeekStart, isWithinScheduleWindow, toDateKey } from "../../lib/date";
@@ -38,14 +38,9 @@ export function CreateScheduleBlockDialog({
 }) {
   const { data: schedules = [], createSchedule } = useSchedules();
   const { createBlocks } = useScheduleBlocks();
-  const { data: unsortedTemplates = [], createTemplate } = useTemplates();
-  // Sorted here rather than at the <option> list so the "first template" default
-  // below picks the same one the user sees at the top. localeCompare keeps
-  // accented names in a sensible place.
-  const templates = useMemo(
-    () => [...unsortedTemplates].sort((a, b) => a.name.localeCompare(b.name)),
-    [unsortedTemplates]
-  );
+  // Sorted so the "first template" default below picks the same one the user
+  // sees at the top of the list.
+  const { sortedTemplates: templates, createTemplate } = useTemplates();
   const scheduleWindow = useScheduleWindow();
   const weekStartsOn = useWeekStartsOn();
   const activeDays = useActiveDays();

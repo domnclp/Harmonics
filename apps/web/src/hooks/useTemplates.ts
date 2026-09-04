@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { apiFetch } from "../lib/api";
 import type { BlockTemplate } from "../types";
 
@@ -22,6 +23,14 @@ export function useTemplates() {
     queryKey: ["templates"],
     queryFn: () => apiFetch<BlockTemplate[]>("/api/templates")
   });
+
+  // Templates arrive newest-first, which suits the Templates page but makes the
+  // block dropdowns hard to scan. Exposed separately so picking a template is
+  // alphabetical everywhere without reordering that page.
+  const sortedTemplates = useMemo(
+    () => [...(templates.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+    [templates.data]
+  );
 
   const createTemplate = useMutation({
     mutationFn: (payload: TemplatePayload) => apiFetch<BlockTemplate>("/api/templates", { method: "POST", body: payload }),
@@ -55,5 +64,5 @@ export function useTemplates() {
     }
   });
 
-  return { ...templates, createTemplate, updateTemplate, deleteTemplate };
+  return { ...templates, sortedTemplates, createTemplate, updateTemplate, deleteTemplate };
 }

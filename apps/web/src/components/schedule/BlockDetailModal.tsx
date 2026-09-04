@@ -29,7 +29,7 @@ export function BlockDetailModal({
   onDelete: (id: string) => void;
 }) {
   const { data: instance, isLoading, updateHabit, updateTask, createTask, deleteTask, moveTask, updateJournal, updateInstanceCompletion } = useBlockInstance(block?.id, date);
-  const { data: templates = [] } = useTemplates();
+  const { sortedTemplates: templates } = useTemplates();
   const { updateBlock } = useScheduleBlocks();
   const weekStartsOn = useWeekStartsOn();
   const scheduleWindow = useScheduleWindow();
