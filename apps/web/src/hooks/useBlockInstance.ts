@@ -21,6 +21,15 @@ type TaskDeleteResponse = {
   completionPercentage: number;
 };
 
+type TaskMoveResponse = {
+  id: string;
+  instanceId: string;
+  // The day the task left, plus its recalculated percentage.
+  sourceInstanceId?: string;
+  sourceCompletionPercentage?: number;
+  instanceCompletionPercentage?: number;
+};
+
 type InstanceCompletionUpdate = {
   id: string;
   completed: boolean;
@@ -205,6 +214,39 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
     }
   });
 
+  const moveTask = useMutation({
+    mutationFn: ({ id, date }: { id: string; date: string }) =>
+      apiFetch<TaskMoveResponse>(`/api/task-completions/${id}/move`, { method: "PATCH", body: { date } }),
+    onSuccess: (result) => {
+      // The task now belongs to another day, so drop it from the day in view and
+      // apply the recalculated percentage the server sent back for it.
+      queryClient.setQueryData<BlockInstance>(queryKey, (current) =>
+        current && result.sourceInstanceId === current.id
+          ? {
+              ...current,
+              completionPercentage: result.sourceCompletionPercentage ?? current.completionPercentage,
+              taskCompletions: current.taskCompletions.filter((item) => item.id !== result.id)
+            }
+          : current
+      );
+      queryClient.setQueryData<BlockInstance[]>(dashboardKey, (current) =>
+        current?.map((item) =>
+          item.id === result.sourceInstanceId
+            ? {
+                ...item,
+                completionPercentage: result.sourceCompletionPercentage ?? item.completionPercentage,
+                taskCompletions: item.taskCompletions.filter((completion) => completion.id !== result.id)
+              }
+            : item
+        )
+      );
+      // The destination day may not be cached (or may have just been
+      // materialized), so let it refetch rather than guessing its shape.
+      queryClient.invalidateQueries({ queryKey: ["block-instance"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-instances"] });
+    }
+  });
+
   const updateJournal = useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) =>
       apiFetch(`/api/journal-entries/${id}`, { method: "PATCH", body: { content } }),
@@ -308,5 +350,5 @@ export function useBlockInstance(scheduleBlockId?: string, date?: string) {
     }
   });
 
-  return { ...instance, updateHabit, updateTask, createTask, deleteTask, updateJournal, updateInstanceCompletion };
+  return { ...instance, updateHabit, updateTask, createTask, deleteTask, moveTask, updateJournal, updateInstanceCompletion };
 }

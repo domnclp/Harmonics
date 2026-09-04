@@ -17,6 +17,11 @@ const taskCreateSchema = z.object({
   title: z.string().trim().min(1).max(120)
 });
 
+// Matches the "YYYY-MM-DD" date keys used throughout the schedule.
+const taskMoveSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a YYYY-MM-DD date")
+});
+
 export const completionController = {
   async updateHabit(req: Request, res: Response) {
     const body = completionSchema.parse(req.body);
@@ -31,6 +36,11 @@ export const completionController = {
   async createTask(req: Request, res: Response) {
     const body = taskCreateSchema.parse(req.body);
     res.status(201).json(await completionService.createTask(req.authUser!.id, req.params.instanceId as string, body));
+  },
+
+  async moveTask(req: Request, res: Response) {
+    const body = taskMoveSchema.parse(req.body);
+    res.json(await completionService.moveTask(req.authUser!.id, req.params.id as string, body.date));
   },
 
   async deleteTask(req: Request, res: Response) {

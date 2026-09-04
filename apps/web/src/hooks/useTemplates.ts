@@ -11,7 +11,9 @@ export type TemplatePayload = {
   journalPrompt?: string | null;
   isTemporary?: boolean;
   habits: { title: string; sortOrder: number }[];
-  tasks: { title: string; sortOrder: number }[];
+  // Optional: the template form no longer edits tasks, and omitting the field
+  // tells the API to leave existing template tasks alone.
+  tasks?: { title: string; sortOrder: number }[];
 };
 
 export function useTemplates() {

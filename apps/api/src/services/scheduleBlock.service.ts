@@ -1,5 +1,6 @@
 import { prisma } from "../prisma/client.js";
 import { AppError } from "../middleware/error.middleware.js";
+import { syncInstancesForBlock } from "./instanceSync.service.js";
 
 export type ScheduleBlockInput = {
   scheduleId: string;
@@ -192,6 +193,13 @@ export const scheduleBlockService = {
         where: { scheduleBlockId: id },
         data: instanceUpdateData
       });
+    }
+
+    // Materialized instances hold their own copy of the template's habits, so
+    // pointing the block at a different template would otherwise leave the old
+    // template's checklist in place.
+    if (input.templateId && input.templateId !== current.templateId) {
+      await syncInstancesForBlock(id, input.templateId);
     }
 
     return updatedBlock;

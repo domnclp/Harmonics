@@ -109,3 +109,33 @@ export const dayOfWeekMondayFirst = (date = new Date()) => {
   const day = date.getDay();
   return day === 0 ? 6 : day - 1;
 };
+
+/**
+ * True when a block's time range fits inside the user's active schedule window.
+ *
+ * The window may run overnight (end earlier than start, e.g. 22:00-06:00), in
+ * which case the day is treated as wrapping past midnight — the same convention
+ * getLogicalMinutes uses. A block ending exactly at the window's end is allowed.
+ */
+export const isWithinScheduleWindow = (
+  blockStart: string,
+  blockEnd: string,
+  windowStart: string,
+  windowEnd: string
+) => {
+  const start = toMinutes(windowStart);
+  const end = toMinutes(windowEnd);
+  const overnight = end <= start;
+  const windowLength = overnight ? minutesPerDay - start + end : end - start;
+
+  // Offsets measured from the window's start, wrapping for overnight windows.
+  const offset = (time: number) => (time - start + minutesPerDay) % minutesPerDay;
+
+  const blockStartOffset = offset(toMinutes(blockStart));
+  const blockEndMinutes = toMinutes(blockEnd);
+  // A block ending at its own start time, or crossing midnight, spans forward.
+  const blockEndOffset = blockEndMinutes === toMinutes(blockStart) ? blockStartOffset : offset(blockEndMinutes);
+  const normalizedEnd = blockEndOffset === 0 ? windowLength : blockEndOffset;
+
+  return blockStartOffset <= normalizedEnd && normalizedEnd <= windowLength;
+};

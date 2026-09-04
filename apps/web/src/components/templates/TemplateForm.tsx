@@ -21,9 +21,9 @@ import { z } from "zod";
 import type { BlockTemplate } from "../../types";
 import { palette, templateColors } from "../../lib/palette";
 import { Button } from "../ui/button";
+import { IconPicker } from "./IconPicker";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { Select } from "../ui/select";
 import { Textarea } from "../ui/textarea";
 
 const itemSchema = z.object({ title: z.string().min(1), sortOrder: z.number() });
@@ -37,8 +37,7 @@ const templateFormSchema = z.object({
   icon: z.string().min(1),
   category: z.string().min(1),
   journalPrompt: z.string().optional(),
-  habits: z.array(itemSchema),
-  tasks: z.array(itemSchema)
+  habits: z.array(itemSchema)
 });
 
 export type TemplateFormValues = z.infer<typeof templateFormSchema>;
@@ -64,13 +63,15 @@ export function TemplateForm({
       icon: initial?.icon ?? "Sunrise",
       category: initial?.category ?? "",
       journalPrompt: initial?.journalPrompt ?? "",
-      habits: toOrderedItems(initial?.habits),
-      tasks: toOrderedItems(initial?.tasks)
+      habits: toOrderedItems(initial?.habits)
     }
   });
 
+  // Tasks are deliberately absent: they are added per-day from the schedule or
+  // dashboard, not defined on the template. Omitting the field from the payload
+  // leaves any existing template tasks untouched, because templateService.update
+  // only rewrites tasks when input.tasks is present.
   const habits = useFieldArray({ control: form.control, name: "habits" });
-  const tasks = useFieldArray({ control: form.control, name: "tasks" });
 
   return (
     <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
@@ -85,14 +86,7 @@ export function TemplateForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="icon">Icon</Label>
-          <Select id="icon" {...form.register("icon")}>
-            <option>Sunrise</option>
-            <option>Dumbbell</option>
-            <option>BookOpen</option>
-            <option>Brain</option>
-            <option>Coffee</option>
-            <option>Moon</option>
-          </Select>
+          <IconPicker value={form.watch("icon")} onChange={(icon) => form.setValue("icon", icon)} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="custom-color">Color</Label>
@@ -137,16 +131,6 @@ export function TemplateForm({
         move={habits.move}
       />
 
-      <ItemEditor
-        title="Tasks"
-        name="tasks"
-        fields={tasks.fields}
-        register={form.register}
-        append={() => tasks.append({ title: "", sortOrder: tasks.fields.length })}
-        remove={tasks.remove}
-        move={tasks.move}
-      />
-
       <div className="space-y-2">
         <Label htmlFor="journalPrompt">Default journal prompt</Label>
         <Textarea id="journalPrompt" placeholder="How did this block go?" {...form.register("journalPrompt")} />
@@ -170,7 +154,7 @@ function ItemEditor({
   move
 }: {
   title: string;
-  name: "habits" | "tasks";
+  name: "habits";
   fields: { id: string }[];
   register: UseFormRegister<TemplateFormValues>;
   append: () => void;

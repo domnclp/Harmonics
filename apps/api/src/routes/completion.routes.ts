@@ -7,5 +7,6 @@ export const completionRoutes = Router();
 completionRoutes.patch("/habit-completions/:id", asyncHandler(completionController.updateHabit));
 completionRoutes.post("/block-instances/:instanceId/task-completions", asyncHandler(completionController.createTask));
 completionRoutes.patch("/task-completions/:id", asyncHandler(completionController.updateTask));
+completionRoutes.patch("/task-completions/:id/move", asyncHandler(completionController.moveTask));
 completionRoutes.delete("/task-completions/:id", asyncHandler(completionController.deleteTask));
 completionRoutes.patch("/block-instances/:instanceId/completions", asyncHandler(completionController.updateInstance));

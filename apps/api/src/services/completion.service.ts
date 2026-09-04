@@ -1,6 +1,7 @@
 import { prisma } from "../prisma/client.js";
 import { AppError } from "../middleware/error.middleware.js";
 import { getHabitStreak } from "./habitStreak.service.js";
+import { blockInstanceService } from "./blockInstance.service.js";
 
 type CompletionUpdate = {
   completed?: boolean;
@@ -89,6 +90,52 @@ export const completionService = {
     });
     const completionPercentage = await updateInstanceCompletion(instanceId);
     return { ...created, instanceCompletionPercentage: completionPercentage };
+  },
+
+  /**
+   * Moves a task to another day, materializing that day's instance if it does
+   * not exist yet. The task keeps its identity (and so its title and state)
+   * rather than being deleted and recreated.
+   *
+   * Both the source and destination instance percentages are recalculated,
+   * because the task leaving one day changes that day's total as much as it
+   * changes the target's.
+   */
+  async moveTask(userId: string, id: string, targetDate: string) {
+    const completion = await prisma.taskCompletion.findFirst({
+      where: { id, instance: { userId } },
+      include: { instance: { select: { id: true, scheduleBlockId: true, date: true } } }
+    });
+    if (!completion) throw new AppError(404, "Task completion not found");
+
+    const target = await blockInstanceService.findOrCreate(
+      userId,
+      completion.instance.scheduleBlockId,
+      targetDate
+    );
+
+    if (target.id === completion.instanceId) {
+      return { ...completion, instanceCompletionPercentage: target.completionPercentage };
+    }
+
+    const updated = await prisma.taskCompletion.update({
+      where: { id },
+      // templateTaskId is intentionally left as-is: it still refers to the same
+      // template task, which is not day-specific.
+      data: { instanceId: target.id }
+    });
+
+    const [sourcePercentage, targetPercentage] = await Promise.all([
+      updateInstanceCompletion(completion.instanceId),
+      updateInstanceCompletion(target.id)
+    ]);
+
+    return {
+      ...updated,
+      sourceInstanceId: completion.instanceId,
+      sourceCompletionPercentage: sourcePercentage,
+      instanceCompletionPercentage: targetPercentage
+    };
   },
 
   async deleteTask(userId: string, id: string) {

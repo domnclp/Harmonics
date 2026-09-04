@@ -269,7 +269,7 @@ export function DashboardPage() {
   const trackableBlocks = useMemo(() => dashboardBlocks.filter((item) => item.checklistTotal > 0), [dashboardBlocks]);
   const todayTrackableBlocks = useMemo(() => todayDashboardBlocks.filter((item) => item.checklistTotal > 0), [todayDashboardBlocks]);
 
-  const { completion, completedHabits, totalHabits, completedTasks, totalTasks } = useMemo(() => {
+  const { completion } = useMemo(() => {
     const habitsByBlock = new Map((instances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.habitCompletions] as const));
     const tasksByBlock = new Map((instances.data ?? []).map((instance) => [instance.scheduleBlockId, instance.taskCompletions] as const));
 
@@ -365,19 +365,12 @@ export function DashboardPage() {
     }
   });
 
-  const completedBlocks = trackableBlocks.filter((item) => item.isComplete).length;
   const todayCompletedBlocks = todayTrackableBlocks.filter((item) => item.isComplete).length;
   const remainingBlocks = dashboardBlocks.filter((item) => !item.isComplete);
-  const overdueBlocks = showsNow ? remainingBlocks.filter((item) => item.endMinutes < nowMinutes) : [];
   const currentBlock = showsNow
     ? remainingBlocks.find((item) => item.startMinutes <= nowMinutes && item.endMinutes >= nowMinutes)
     : undefined;
   const upcomingBlock = showsNow ? remainingBlocks.find((item) => item.startMinutes > nowMinutes) : remainingBlocks[0];
-  const primaryBlock = currentBlock ?? upcomingBlock ?? remainingBlocks[0];
-  const attentionBlocks = [
-    ...overdueBlocks,
-    ...(primaryBlock && !overdueBlocks.some((item) => item.block.id === primaryBlock.block.id) ? [primaryBlock] : [])
-  ];
   const todayOverallCompletion = useMemo(
     () => todayTrackableBlocks.length ? Math.round(todayTrackableBlocks.reduce((sum, item) => sum + item.completionPercentage, 0) / todayTrackableBlocks.length) : 0,
     [todayTrackableBlocks]

@@ -1,9 +1,10 @@
-import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { CalendarClock, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { formatTime, getDayOptions } from "../../lib/date";
+import { formatTime, getDayOptions, isWithinScheduleWindow, toDateKey } from "../../lib/date";
 import { recurrenceOptions } from "../../lib/recurrence";
 import { useBlockInstance } from "../../hooks/useBlockInstance";
 import { useScheduleBlocks } from "../../hooks/useScheduleBlocks";
+import { useScheduleWindow } from "../../hooks/useScheduleWindow";
 import { useTemplates } from "../../hooks/useTemplates";
 import { useWeekStartsOn } from "../../hooks/useWeekStartsOn";
 import type { Completion, ScheduleBlock } from "../../types";
@@ -27,16 +28,18 @@ export function BlockDetailModal({
   onClose: () => void;
   onDelete: (id: string) => void;
 }) {
-  const { data: instance, isLoading, updateHabit, updateTask, createTask, deleteTask, updateJournal, updateInstanceCompletion } = useBlockInstance(block?.id, date);
+  const { data: instance, isLoading, updateHabit, updateTask, createTask, deleteTask, moveTask, updateJournal, updateInstanceCompletion } = useBlockInstance(block?.id, date);
   const { data: templates = [] } = useTemplates();
   const { updateBlock } = useScheduleBlocks();
   const weekStartsOn = useWeekStartsOn();
+  const scheduleWindow = useScheduleWindow();
   const dayOptions = getDayOptions(weekStartsOn);
   const [journal, setJournal] = useState("");
   const [editing, setEditing] = useState(false);
   const [incompleteDialogOpen, setIncompleteDialogOpen] = useState(false);
   const [incompleteReason, setIncompleteReason] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [editError, setEditError] = useState("");
   const [editValues, setEditValues] = useState({
     templateId: "",
     dayOfWeek: 0,
@@ -64,6 +67,17 @@ export function BlockDetailModal({
 
   const saveScheduleBlock = async () => {
     if (!block) return;
+
+    // Same rule as creating a block: an edit must not move it outside the
+    // active window. Blocks already outside it are left as they are.
+    if (!isWithinScheduleWindow(editValues.startTime, editValues.endTime, scheduleWindow.startTime, scheduleWindow.endTime)) {
+      setEditError(
+        `Blocks must fall inside your active schedule window (${formatTime(scheduleWindow.startTime)} - ${formatTime(scheduleWindow.endTime)}).`
+      );
+      return;
+    }
+
+    setEditError("");
 
     await updateBlock.mutateAsync({
       id: block.id,
@@ -217,6 +231,8 @@ export function BlockDetailModal({
                 </div>
               </div>
 
+              {editError && <p className="text-sm text-destructive">{editError}</p>}
+
               <Button type="submit" size="sm" disabled={updateBlock.isPending}>
                 <Save className="h-4 w-4" />
                 Save schedule changes
@@ -249,6 +265,7 @@ export function BlockDetailModal({
               onAddTaskTitleChange={setNewTaskTitle}
               onAddTask={() => void addTask()}
               onRemove={(item) => deleteTask.mutate(item.id)}
+              onMove={(item, targetDate) => moveTask.mutate({ id: item.id, date: targetDate })}
               taskChangePending={taskChangePending}
             />
           </div>
@@ -323,6 +340,7 @@ function Checklist({
   onAddTaskTitleChange,
   onAddTask,
   onRemove,
+  onMove,
   taskChangePending = false
 }: {
   title: string;
@@ -333,6 +351,7 @@ function Checklist({
   onAddTaskTitleChange?: (value: string) => void;
   onAddTask?: () => void;
   onRemove?: (item: Completion) => void;
+  onMove?: (item: Completion, date: string) => void;
   taskChangePending?: boolean;
 }) {
   const canAddTask = Boolean(onAddTask && onAddTaskTitleChange);
@@ -382,6 +401,13 @@ function Checklist({
                   Streak: {item.streak ?? 0} {(item.streak ?? 0) === 1 ? "day" : "days"}
                 </span>
               )}
+              {onMove && !item.completed && (
+                <MoveTaskControl
+                  title={item.title}
+                  disabled={taskChangePending}
+                  onMove={(targetDate) => onMove(item, targetDate)}
+                />
+              )}
               {onRemove && (
                 <Button type="button" variant="ghost" size="icon" onClick={() => onRemove(item)} disabled={taskChangePending} aria-label={`Remove ${item.title}`}>
                   <Trash2 className="h-4 w-4" />
@@ -392,5 +418,75 @@ function Checklist({
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * Moves an unfinished task to another day. Offered only for unfinished tasks —
+ * rescheduling something already done would misrepresent the day it happened.
+ */
+function MoveTaskControl({
+  title,
+  disabled,
+  onMove
+}: {
+  title: string;
+  disabled?: boolean;
+  onMove: (date: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [customDate, setCustomDate] = useState("");
+
+  const shiftDays = (days: number) => {
+    const target = new Date();
+    target.setDate(target.getDate() + days);
+    return toDateKey(target);
+  };
+
+  const move = (date: string) => {
+    if (!date) return;
+    onMove(date);
+    setOpen(false);
+    setCustomDate("");
+  };
+
+  return (
+    <div className="relative">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
+        aria-label={`Reschedule ${title}`}
+        aria-expanded={open}
+      >
+        <CalendarClock className="h-4 w-4" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-52 space-y-2 rounded-md border bg-background p-2 shadow-md">
+          <p className="px-1 text-xs font-medium text-muted-foreground">Move to</p>
+          <div className="space-y-1">
+            <Button type="button" variant="ghost" size="sm" className="w-full justify-start" onClick={() => move(shiftDays(1))}>
+              Tomorrow
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="w-full justify-start" onClick={() => move(shiftDays(7))}>
+              Next week
+            </Button>
+          </div>
+          <div className="flex gap-1 border-t pt-2">
+            <Input
+              type="date"
+              value={customDate}
+              onChange={(event) => setCustomDate(event.target.value)}
+              aria-label={`Move ${title} to a specific date`}
+            />
+            <Button type="button" variant="outline" size="sm" disabled={!customDate} onClick={() => move(customDate)}>
+              Move
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

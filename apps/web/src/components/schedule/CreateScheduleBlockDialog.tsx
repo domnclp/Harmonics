@@ -1,9 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarPlus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { getDateForDayOfWeek, getDayOptions, getWeekStart, toDateKey } from "../../lib/date";
+import { formatTime, getDateForDayOfWeek, getDayOptions, getWeekStart, isWithinScheduleWindow, toDateKey } from "../../lib/date";
 import { palette } from "../../lib/palette";
 import { recurrenceOptions, type RecurrenceRule } from "../../lib/recurrence";
 import { useScheduleBlocks } from "../../hooks/useScheduleBlocks";
@@ -38,7 +38,14 @@ export function CreateScheduleBlockDialog({
 }) {
   const { data: schedules = [], createSchedule } = useSchedules();
   const { createBlocks } = useScheduleBlocks();
-  const { data: templates = [], createTemplate } = useTemplates();
+  const { data: unsortedTemplates = [], createTemplate } = useTemplates();
+  // Sorted here rather than at the <option> list so the "first template" default
+  // below picks the same one the user sees at the top. localeCompare keeps
+  // accented names in a sensible place.
+  const templates = useMemo(
+    () => [...unsortedTemplates].sort((a, b) => a.name.localeCompare(b.name)),
+    [unsortedTemplates]
+  );
   const scheduleWindow = useScheduleWindow();
   const weekStartsOn = useWeekStartsOn();
   const activeDays = useActiveDays();
@@ -105,6 +112,16 @@ export function CreateScheduleBlockDialog({
 
     if (mode === "template" && (!values.templateId || (usesSelectedDays && selectedDays.length === 0))) return;
     if (mode === "temporary" && !temporaryName.trim()) return;
+
+    // A routine only sticks if it sits in the hours you are actually awake, so
+    // new blocks are held inside the active window. Existing blocks outside it
+    // are left alone.
+    if (!isWithinScheduleWindow(values.startTime, values.endTime, scheduleWindow.startTime, scheduleWindow.endTime)) {
+      setSubmitError(
+        `Blocks must fall inside your active schedule window (${formatTime(scheduleWindow.startTime)} - ${formatTime(scheduleWindow.endTime)}). Change it in Settings if your day has shifted.`
+      );
+      return;
+    }
 
     setSubmitError("");
 

@@ -1,11 +1,10 @@
-import { BookOpen, Brain, Coffee, Dumbbell, Moon, Pencil, Sunrise, Trash2 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { BlockTemplate } from "../../types";
+import { resolveIcon } from "../../lib/templateIcons";
+import { cn } from "../../lib/utils";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-
-const icons: Record<string, LucideIcon> = { Sunrise, Dumbbell, BookOpen, Brain, Coffee, Moon };
 
 export function TemplateCard({
   template,
@@ -16,7 +15,8 @@ export function TemplateCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const Icon = icons[template.icon] ?? Sunrise;
+  const Icon = resolveIcon(template.icon);
+  const recentTasks = template.recentTasks ?? [];
 
   return (
     <Card>
@@ -59,19 +59,23 @@ export function TemplateCard({
         </div>
 
         <div className="space-y-2 border-t pt-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tasks</div>
-          {template.tasks.length ? (
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tasks</div>
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Recent</span>
+          </div>
+          {recentTasks.length ? (
             <ul className="space-y-1.5">
-              {template.tasks.map((task) => (
-                <li key={task.id} className="flex items-start gap-2 text-sm">
+              {recentTasks.map((task) => (
+                <li key={`${task.title}-${task.date}`} className="flex items-start gap-2 text-sm">
                   <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                  <span>{task.title}</span>
+                  <span className={cn(task.completed && "text-muted-foreground line-through")}>{task.title}</span>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="text-sm text-muted-foreground">No tasks yet</p>
           )}
+          <p className="text-xs text-muted-foreground/80">Add tasks from the schedule or dashboard.</p>
         </div>
       </CardContent>
     </Card>

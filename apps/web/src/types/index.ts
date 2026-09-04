@@ -15,6 +15,12 @@ export type BlockTemplate = {
   isTemporary?: boolean;
   habits: TemplateItem[];
   tasks: TemplateItem[];
+  /**
+   * Read-only preview of tasks recently added to this template's blocks from
+   * the schedule or dashboard. Tasks are per-day (they live on BlockInstance),
+   * so these are shown for context and are not editable here.
+   */
+  recentTasks?: { title: string; completed: boolean; date: string }[];
 };
 
 export type Schedule = {

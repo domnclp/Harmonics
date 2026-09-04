@@ -262,7 +262,7 @@ export function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Default schedule window</CardTitle>
+            <CardTitle>Active schedule window</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -275,7 +275,10 @@ export function SettingsPage() {
                 <Input id="scheduleEnd" type="time" step="1800" value={scheduleEnd} onChange={(event) => setScheduleEnd(event.target.value)} />
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">End times earlier than the start are treated as the next day.</p>
+            <p className="text-sm text-muted-foreground">
+              The hours you are realistically awake and able to follow a routine. New blocks must start and end inside this
+              window. End times earlier than the start are treated as the next day.
+            </p>
             {scheduleWindowChanged && (
               <div className="flex flex-wrap gap-2">
                 <Button type="button" size="sm" onClick={() => void saveDefaultScheduleWindow()} disabled={!scheduleWindowValid || scheduleSaving}>
