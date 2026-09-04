@@ -1,0 +1,54 @@
+# Render blueprint for the API.
+#
+# npm workspaces is a "shared" monorepo: there is no Root Directory to set, and
+# every command runs from the repo root so the hoisted node_modules resolves.
+#
+# The free plan sleeps after 15 minutes without traffic and allows 750 instance
+# hours per month per workspace. .github/workflows/notifications.yml pings this
+# service only during waking hours to stay well under that budget — see the
+# comments there before changing either schedule.
+services:
+  - type: web
+    name: harmonics-api
+    runtime: node
+    plan: free
+    region: singapore
+    # Render does not install dependencies implicitly the way Nixpacks did.
+    buildCommand: npm ci && npm run build --workspace @harmonics/api
+    # `start` runs `prisma migrate deploy` before booting the server.
+    startCommand: npm run start --workspace @harmonics/api
+    # Deliberately /health and not /health/db: probes are frequent, and a
+    # transient database blip should not take the whole service down.
+    healthCheckPath: /health
+    envVars:
+      # PORT is injected by Render; server.ts already binds 0.0.0.0.
+      - key: NODE_VERSION
+        value: "22"
+      - key: NOTIFICATIONS_ENABLED
+        value: "true"
+      # This host sleeps, so an in-process cron cannot survive. GitHub Actions
+      # drives POST /api/notifications/tick instead.
+      - key: SCHEDULER_IN_PROCESS
+        value: "false"
+      # Set in the dashboard, not here.
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      # Unset keeps the tick endpoint closed (404). Must match the GitHub secret.
+      - key: SCHEDULER_TICK_SECRET
+        sync: false

@@ -57,7 +57,7 @@ Web Push (VAPID), one code path serving Windows/desktop and iOS. Requires `VAPID
 
 - **Scheduler**: `notificationScheduler.tick(now = new Date())` in [notificationScheduler.service.ts](apps/api/src/services/notificationScheduler.service.ts), driven by `node-cron` every minute from [scheduler/index.ts](apps/api/src/scheduler/index.ts). It is started in `server.ts`, **not** `app.ts`, so importing the Express app never starts a timer. `now` is injectable — the only practical way to exercise time-dependent behaviour in a repo with no tests.
 - **Dedupe**: every send claims a `NotificationLog.dedupeKey` (`userId:kind:dateKey:blockId`) **before** sending, catching P2002. Claim-first can lose a notification on a crash; send-first would re-send every minute after one, which is far worse. `dateKey` in the key is load-bearing — omitting it would suppress a notification permanently rather than for one day.
-- **Timing**: triggers fire in a 3-minute catch-up window (`[target, target+3)`), so a late or restarted tick still delivers, with the dedupe log collapsing repeats.
+- **Timing**: triggers fire in a 6-minute catch-up window (`[target, target+6)`), so a late or restarted tick still delivers, with the dedupe log collapsing repeats. Six absorbs a 5-minute external cadence plus GitHub Actions queue delay; narrowing it risks silently dropping the first notification of the day.
 - **Recurrence**: [apps/api/src/lib/recurrence.ts](apps/api/src/lib/recurrence.ts) mirrors [apps/web/src/lib/recurrence.ts](apps/web/src/lib/recurrence.ts) — **keep them in sync**. The API copy is all-UTC; the web copy is all-local. Each is internally consistent; mixing them causes off-by-one-day bugs. `dayOfWeek` is Monday-first everywhere except `analytics.controller.ts`.
 - **Copy**: [notifications/copy.ts](apps/api/src/notifications/copy.ts) is pure and side-effect-free. Variants are guarded by `when` and ranked by `priority` — randomness applies only within the top priority tier, so a specific variant can't be outvoted by the generic fallback (this is what kept a 20%-completion day from reading "Solid day"). Every kind ends with a `when: () => true` fallback.
 - **Streaks**: use `getUserHabitStreaks` (one query, 90-day lookback) from the scheduler, never `withHabitStreaks`, which is O(n) unbounded queries.
@@ -66,6 +66,14 @@ Web Push (VAPID), one code path serving Windows/desktop and iOS. Requires `VAPID
 
 ## Deployment
 
-- Web → Vercel (`apps/web/dist`); API → Railway/Render; DB → Supabase Postgres. Both apps have their own `vercel.json`.
-- The in-process notification scheduler needs a **persistent** host (Railway/Render), not serverless. Exactly one instance should run — the dedupe log makes duplicates harmless, but a sleeping free-tier dyno silently stops delivering.
-- Root [knip.json](knip.json) configures unused-export/dependency detection across workspaces.
+Everything runs on permanently-free tiers. Web → Vercel Hobby (`apps/web/dist`); API → Render free web service ([render.yaml](render.yaml)); DB → Supabase free Postgres. Both apps have their own `vercel.json`. `railway.json` is kept only as a rollback path.
+
+**The scheduler is external, not in-process.** Render's free tier sleeps after 15 minutes, which kills a `node-cron` timer, so `SCHEDULER_IN_PROCESS=false` there and [.github/workflows/notifications.yml](.github/workflows/notifications.yml) drives `POST /api/notifications/tick` instead. Exactly one scheduler should ever be live — set `NOTIFICATIONS_ENABLED=false` on any old host before pointing the workflow at a new one.
+
+Three free-tier constraints that bite, all with silent failure modes:
+
+- **Render bills by wall-clock uptime**: 750 instance-hours/month, workspace-wide, and exhausting them suspends the service until the 1st. A 24/7 ping costs 744h. The workflow therefore runs only 22:00–15:00 UTC (06:00–23:00 at UTC+8) for ~568h. Changing that window means re-checking that the 03:00-UTC log prune in `notificationScheduler.tick` still falls inside it.
+- **Supabase pauses a free project after 7 days without database activity.** `tick()` returns early — before any query — when VAPID keys are missing, so a green workflow is not proof the DB was reached. The workflow hits `/health/db` separately for exactly this reason.
+- **GitHub disables scheduled workflows after 60 days of repo inactivity**, with no error beyond one email. Unlimited Actions minutes require the repo to stay **public**.
+
+Root [knip.json](knip.json) configures unused-export/dependency detection across workspaces.

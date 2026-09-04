@@ -5,9 +5,24 @@ name: Notification scheduler
 #
 # Five minutes is the floor GitHub allows, and runs can be delayed under load —
 # the tick's catch-up window and Postgres-backed dedupe absorb both.
+#
+# The schedule is deliberately NOT 24/7. Render's free tier allows 750 instance
+# hours per month and bills by wall-clock uptime, so pinging around the clock
+# costs 744h of a 750h budget — exhausting it suspends the service until the 1st.
+# Restricting to waking hours (06:00–23:00 at UTC+8) costs ~568h instead.
+#
+# Cadence stays at 5 minutes: hours are billed by uptime, not by tick count, so a
+# slower cadence would save nothing while widening the heads-up window.
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # Pre-warm at 05:55 local. A cold Render instance takes ~1min to spin up, and
+    # that delay stacks with GitHub's own queue delay; without this the first
+    # notification of the day can miss the tick's 6-minute catch-up window.
+    - cron: "55 21 * * *"
+    # 06:00–23:00 local (UTC+8). Keep in sync with the schedule window in
+    # UserSettings, and re-check notificationScheduler's 03:00-UTC log prune
+    # (11:00 local) still falls inside these hours before narrowing them.
+    - cron: "*/5 22,23,0-15 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -48,3 +63,28 @@ jobs:
 
           echo "::error::Scheduler tick failed after 3 attempts"
           exit 1
+
+      # notificationScheduler.tick() returns early — before touching Postgres —
+      # when VAPID keys are missing, so a green tick above is NOT proof the
+      # database was reached. Supabase pauses a free project after 7 days without
+      # activity, so hit an endpoint that always runs a query. This also makes an
+      # unreachable database show up as a red workflow rather than silence.
+      - name: Keep the database awake
+        if: always()
+        env:
+          API_URL: ${{ secrets.API_URL }}
+        run: |
+          if [ -z "$API_URL" ]; then
+            echo "::error::API_URL secret is not set"
+            exit 1
+          fi
+
+          code=$(curl -s -o /tmp/db.json -w "%{http_code}" \
+            --max-time 90 "$API_URL/health/db")
+
+          if [ "$code" != "200" ]; then
+            echo "::error::Database health check failed (HTTP $code): $(cat /tmp/db.json 2>/dev/null)"
+            exit 1
+          fi
+
+          echo "db ok: $(cat /tmp/db.json)"
