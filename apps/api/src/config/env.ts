@@ -17,7 +17,16 @@ const envSchema = z.object({
   NOTIFICATIONS_ENABLED: z
     .enum(["true", "false"])
     .default("true")
-    .transform((value) => value === "true")
+    .transform((value) => value === "true"),
+  // Off on hosts that sleep between requests, where an external scheduler
+  // drives POST /api/notifications/tick instead of the in-process cron.
+  SCHEDULER_IN_PROCESS: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  // Shared secret for the tick endpoint. Unset means the endpoint stays closed,
+  // so a missing value can never silently expose the scheduler.
+  SCHEDULER_TICK_SECRET: z.string().optional()
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -11,6 +11,7 @@ import { analyticsRoutes } from "./routes/analytics.routes.js";
 import { blockInstanceRoutes } from "./routes/blockInstance.routes.js";
 import { completionRoutes } from "./routes/completion.routes.js";
 import { journalRoutes } from "./routes/journal.routes.js";
+import { notificationsRoutes } from "./routes/notifications.routes.js";
 import { pushRoutes } from "./routes/push.routes.js";
 import { scheduleBlockRoutes } from "./routes/scheduleBlock.routes.js";
 import { scheduleRoutes } from "./routes/schedule.routes.js";
@@ -79,6 +80,11 @@ app.get("/health/db", async (_req, res, next) => {
   }
 });
 
+// Mounted before the broad "/api" mount below, which would otherwise apply
+// requireAuth to it. Not authenticated: the caller is an external scheduler
+// with no user session, so notificationsController.tick guards it with a
+// shared secret instead.
+app.use("/api/notifications", notificationsRoutes);
 app.use("/api/schedules", requireAuth, scheduleRoutes);
 app.use("/api/templates", requireAuth, templateRoutes);
 app.use("/api/schedule-blocks", requireAuth, scheduleBlockRoutes);

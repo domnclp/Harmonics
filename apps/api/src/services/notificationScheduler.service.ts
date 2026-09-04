@@ -23,10 +23,13 @@ const defaultSettings = {
  *
  * Exact-minute equality would silently drop a notification whenever a tick runs
  * late or the process restarts across the boundary. A wider window would deliver
- * stale bursts after downtime. Three minutes is the balance; the dedupe log
- * collapses the repeats.
+ * stale bursts after downtime.
+ *
+ * Six minutes covers an external scheduler on a 5-minute cadence (GitHub Actions
+ * cannot go faster, and its runs can be delayed). The dedupe log collapses the
+ * repeats, so a wider window costs nothing but staleness.
  */
-const catchupMinutes = 3;
+const catchupMinutes = 6;
 
 export type ResolvedSettings = {
   scheduleStart: string;

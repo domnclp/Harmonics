@@ -12,6 +12,13 @@ export const startNotificationScheduler = () => {
     return;
   }
 
+  // Hosts that sleep between requests cannot keep a timer alive; there an
+  // external scheduler POSTs /api/notifications/tick instead.
+  if (!env.SCHEDULER_IN_PROCESS) {
+    console.log("[notifications] in-process cron off — expecting external ticks");
+    return;
+  }
+
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
     console.warn("[notifications] VAPID keys missing — scheduler not started");
     return;

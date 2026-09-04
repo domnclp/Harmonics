@@ -1,0 +1,50 @@
+name: Notification scheduler
+
+# Drives the notification scheduler on hosts that sleep between requests, where
+# an in-process cron cannot survive. The request doubles as a keep-alive.
+#
+# Five minutes is the floor GitHub allows, and runs can be delayed under load —
+# the tick's catch-up window and Postgres-backed dedupe absorb both.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  # Never let a delayed run overlap the next one.
+  group: notification-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger scheduler tick
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          TICK_SECRET: ${{ secrets.SCHEDULER_TICK_SECRET }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$TICK_SECRET" ]; then
+            echo "::error::API_URL or SCHEDULER_TICK_SECRET secret is not set"
+            exit 1
+          fi
+
+          # A sleeping host needs time to wake; retry before giving up.
+          for attempt in 1 2 3; do
+            code=$(curl -s -o /tmp/body.json -w "%{http_code}" \
+              --max-time 90 \
+              -X POST "$API_URL/api/notifications/tick" \
+              -H "Authorization: Bearer $TICK_SECRET")
+
+            if [ "$code" = "200" ]; then
+              echo "tick ok: $(cat /tmp/body.json)"
+              exit 0
+            fi
+
+            echo "attempt $attempt failed (HTTP $code): $(cat /tmp/body.json 2>/dev/null)"
+            [ $attempt -lt 3 ] && sleep 20
+          done
+
+          echo "::error::Scheduler tick failed after 3 attempts"
+          exit 1
