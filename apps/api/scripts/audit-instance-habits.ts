@@ -23,7 +23,14 @@ const main = async () => {
       id: true,
       date: true,
       templateId: true,
-      template: { select: { name: true, habits: { select: { id: true, title: true } } } },
+      template: { select: { name: true } },
+      // Compare against the BLOCK's template, not the instance's. An instance
+      // whose templateId drifted is stale on both sides, so checking it against
+      // itself reports a false clean — which is exactly how the first pass of
+      // this audit missed four broken days.
+      scheduleBlock: {
+        select: { templateId: true, template: { select: { name: true, habits: { select: { id: true, title: true } } } } }
+      },
       habitCompletions: {
         select: { id: true, templateHabitId: true, title: true, completed: true, failureReason: true }
       }
@@ -36,8 +43,15 @@ const main = async () => {
   let missingTotal = 0;
   let markedAtRisk = 0;
 
+  let drifted = 0;
+
   for (const instance of instances) {
-    const wanted = new Set(instance.template.habits.map((habit) => habit.id));
+    const block = instance.scheduleBlock;
+    if (!block) continue;
+
+    const wanted = new Set(block.template.habits.map((habit) => habit.id));
+    const templateDrifted = instance.templateId !== block.templateId;
+    if (templateDrifted) drifted += 1;
     const present = new Set(
       instance.habitCompletions.filter((row) => row.templateHabitId).map((row) => row.templateHabitId as string)
     );
@@ -49,9 +63,9 @@ const main = async () => {
     );
     // Orphans: the template habit was deleted, so the FK was set to null.
     const orphaned = instance.habitCompletions.filter((row) => row.templateHabitId === null);
-    const missing = instance.template.habits.filter((habit) => !present.has(habit.id));
+    const missing = block.template.habits.filter((habit) => !present.has(habit.id));
 
-    if (!stale.length && !missing.length) continue;
+    if (!stale.length && !missing.length && !templateDrifted) continue;
 
     mismatched += 1;
     staleTotal += stale.length;
@@ -61,7 +75,10 @@ const main = async () => {
     markedAtRisk += touched.length;
 
     const dateKey = instance.date.toISOString().slice(0, 10);
-    console.log(`\n${dateKey}  ${instance.template.name}  (instance ${instance.id})`);
+    console.log(`\n${dateKey}  ${block.template.name}  (instance ${instance.id})`);
+    if (templateDrifted) {
+      console.log(`  instance still records "${instance.template.name}" — its block now uses "${block.template.name}"`);
+    }
     if (stale.length) {
       console.log(`  does not belong (${stale.length}):`);
       for (const row of stale) {
@@ -81,6 +98,7 @@ const main = async () => {
   console.log("\n────────────────────────────────────");
   console.log(`instances scanned (today onward): ${instances.length}`);
   console.log(`instances needing repair:         ${mismatched}`);
+  console.log(`instances with a drifted template: ${drifted}`);
   console.log(`habit rows to remove:             ${staleTotal}`);
   console.log(`habit rows to add:                ${missingTotal}`);
   console.log(`of those removed, already marked: ${markedAtRisk}`);
