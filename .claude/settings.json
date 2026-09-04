@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir -p \"c:/Projects/Harmonics/.claude/skills/run\")"
+      "Bash(mkdir -p \"c:/Projects/Harmonics/.claude/skills/run\")",
+      "Bash(npm run *)"
     ],
     "additionalDirectories": [
       "c:\\Projects\\Harmonics\\.claude\\skills"
