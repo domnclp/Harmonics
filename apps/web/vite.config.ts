@@ -1,8 +1,33 @@
+import { execSync } from "node:child_process";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+/**
+ * Identifies the running build so Settings can answer "did my deploy land?".
+ *
+ * Vercel sets VERCEL_GIT_COMMIT_SHA but checks out a detached HEAD without git
+ * history in some build images, so the env var is tried first and the local git
+ * call is only a fallback for `npm run build` on a dev machine.
+ */
+const resolveCommit = () => {
+  const fromHost = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.RENDER_GIT_COMMIT;
+  if (fromHost) return fromHost.slice(0, 7);
+
+  try {
+    return execSync("git rev-parse --short HEAD", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    // A tarball build with no git and no host variable: better to show
+    // "unknown" than to fail the build over a label.
+    return "unknown";
+  }
+};
+
 export default defineConfig({
+  define: {
+    __APP_COMMIT__: JSON.stringify(resolveCommit()),
+    __APP_BUILT_AT__: JSON.stringify(new Date().toISOString())
+  },
   plugins: [
     react(),
     VitePWA({

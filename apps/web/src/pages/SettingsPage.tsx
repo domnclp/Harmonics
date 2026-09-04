@@ -4,6 +4,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
+import { AppVersionCard } from "../components/settings/AppVersionCard";
 import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
 import { useAuth } from "../hooks/useAuth";
 import { getStoredScheduleWindow, saveScheduleWindowToServer } from "../hooks/useScheduleWindow";
@@ -358,6 +359,8 @@ export function SettingsPage() {
         </Card>
 
         <NotificationSettingsCard />
+
+        <AppVersionCard />
       </div>
     </div>
   );

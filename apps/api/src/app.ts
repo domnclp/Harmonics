@@ -61,6 +61,19 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+// Identifies the deployed build. Unauthenticated so the Settings page can show
+// it next to the web version — the two deploy separately, and only comparing
+// both answers "did my push actually land?". A commit SHA is public information
+// in a public repo, and startedAt only reveals that the host restarted.
+const startedAt = new Date().toISOString();
+app.get("/version", (_req, res) => {
+  res.json({
+    // Render sets RENDER_GIT_COMMIT on every build.
+    commit: (process.env.RENDER_GIT_COMMIT ?? "unknown").slice(0, 7),
+    startedAt
+  });
+});
+
 app.get("/health/db", async (_req, res, next) => {
   try {
     await prisma.$queryRaw`SELECT 1`;

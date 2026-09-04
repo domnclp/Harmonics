@@ -76,4 +76,6 @@ Three free-tier constraints that bite, all with silent failure modes:
 - **Supabase pauses a free project after 7 days without database activity.** `tick()` returns early — before any query — when VAPID keys are missing, so a green workflow is not proof the DB was reached. The workflow hits `/health/db` separately for exactly this reason.
 - **GitHub disables scheduled workflows after 60 days of repo inactivity**, with no error beyond one email. Unlimited Actions minutes require the repo to stay **public**.
 
+**Checking what is deployed**: Settings shows both builds. The web commit is injected at build time by `define` in [apps/web/vite.config.ts](apps/web/vite.config.ts) (`__APP_COMMIT__`/`__APP_BUILT_AT__`, declared in `src/vite-env.d.ts`), reading `VERCEL_GIT_COMMIT_SHA` and falling back to a local `git rev-parse`; the API reports `RENDER_GIT_COMMIT` from its unauthenticated `/version` route. Both are shown because the two deploy separately — a fresh web commit beside a stale API one means Render is still building. The card also surfaces a waiting service worker, since a deployed update is not live until the new worker takes over.
+
 Root [knip.json](knip.json) configures unused-export/dependency detection across workspaces.
