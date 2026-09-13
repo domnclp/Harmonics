@@ -46,19 +46,28 @@ jobs:
           fi
 
           # A sleeping host needs time to wake; retry before giving up.
+          #
+          # `|| true` is load-bearing: this step runs under `bash -e`, so a curl
+          # that fails at the network level (exit 56, "failure receiving data",
+          # which is what a Render instance dropping the connection mid-wake
+          # looks like) would kill the script on this line — before the retry
+          # below could run. The loop then only ever retried HTTP errors, never
+          # the transport failures retries exist for.
           for attempt in 1 2 3; do
             code=$(curl -s -o /tmp/body.json -w "%{http_code}" \
               --max-time 90 \
               -X POST "$API_URL/api/notifications/tick" \
-              -H "Authorization: Bearer $TICK_SECRET")
+              -H "Authorization: Bearer $TICK_SECRET" || true)
 
             if [ "$code" = "200" ]; then
               echo "tick ok: $(cat /tmp/body.json)"
               exit 0
             fi
 
-            echo "attempt $attempt failed (HTTP $code): $(cat /tmp/body.json 2>/dev/null)"
-            [ $attempt -lt 3 ] && sleep 20
+            echo "attempt $attempt failed (HTTP ${code:-network error}): $(cat /tmp/body.json 2>/dev/null)"
+            # `if` rather than `&&`: on the last pass the test is false, and a
+            # trailing false command under `bash -e` fails the step.
+            if [ "$attempt" -lt 3 ]; then sleep 20; fi
           done
 
           echo "::error::Scheduler tick failed after 3 attempts"
@@ -79,12 +88,21 @@ jobs:
             exit 1
           fi
 
-          code=$(curl -s -o /tmp/db.json -w "%{http_code}" \
-            --max-time 90 "$API_URL/health/db")
+          # Retries for the same reason as the tick above, and it matters more
+          # here: this call is what keeps Supabase from pausing the project, so
+          # a single dropped connection should not be treated as a real failure.
+          for attempt in 1 2 3; do
+            code=$(curl -s -o /tmp/db.json -w "%{http_code}" \
+              --max-time 90 "$API_URL/health/db" || true)
 
-          if [ "$code" != "200" ]; then
-            echo "::error::Database health check failed (HTTP $code): $(cat /tmp/db.json 2>/dev/null)"
-            exit 1
-          fi
+            if [ "$code" = "200" ]; then
+              echo "db ok: $(cat /tmp/db.json)"
+              exit 0
+            fi
 
-          echo "db ok: $(cat /tmp/db.json)"
+            echo "attempt $attempt failed (HTTP ${code:-network error}): $(cat /tmp/db.json 2>/dev/null)"
+            if [ "$attempt" -lt 3 ]; then sleep 20; fi
+          done
+
+          echo "::error::Database health check failed after 3 attempts"
+          exit 1
